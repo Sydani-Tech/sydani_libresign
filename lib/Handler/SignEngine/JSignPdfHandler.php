@@ -371,7 +371,11 @@ class JSignPdfHandler extends Pkcs12Handler {
 							scaleFactor: $this->normalizeScaleFactor($scaleFactor),
 						);
 					} elseif ($signatureImagePath) {
-						$params['--bg-path'] = $signatureImagePath;
+						$params['--bg-path'] = $this->fitSignatureToField(
+							$signatureImagePath,
+							$params['-urx'] - $params['-llx'],
+							$params['-ury'] - $params['-lly'],
+						);
 						$params['--bg-scale'] = -1;
 					}
 				} elseif ($params['--l2-text'] === '""') {
@@ -483,6 +487,49 @@ class JSignPdfHandler extends Pkcs12Handler {
 		}
 		file_put_contents($tmpPath, $content);
 		return $tmpPath;
+	}
+
+	/** Trim empty canvas margins, then fit the ink inside the placed field without distortion. */
+	private function fitSignatureToField(string $signaturePath, float $fieldWidth, float $fieldHeight): string {
+		if (!extension_loaded('imagick') || $fieldWidth <= 0 || $fieldHeight <= 0) {
+			return $signaturePath;
+		}
+
+		$signature = new Imagick($signaturePath);
+		$signature->setImageFormat('png32');
+		$signature->trimImage(0.01);
+		$signature->setImagePage(0, 0, 0, 0);
+
+		$canvasWidth = max(1, (int)round($fieldWidth * 4));
+		$canvasHeight = max(1, (int)round($fieldHeight * 4));
+		$fit = min(
+			$canvasWidth * 0.94 / $signature->getImageWidth(),
+			$canvasHeight * 0.94 / $signature->getImageHeight(),
+		);
+		$signature->resizeImage(
+			max(1, (int)round($signature->getImageWidth() * $fit)),
+			max(1, (int)round($signature->getImageHeight() * $fit)),
+			Imagick::FILTER_LANCZOS,
+			1,
+		);
+
+		$canvas = new Imagick();
+		$canvas->newImage($canvasWidth, $canvasHeight, new ImagickPixel('transparent'));
+		$canvas->setImageFormat('png32');
+		$canvas->compositeImage(
+			$signature,
+			Imagick::COMPOSITE_OVER,
+			(int)round(($canvasWidth - $signature->getImageWidth()) / 2),
+			(int)round(($canvasHeight - $signature->getImageHeight()) / 2),
+		);
+		$output = $this->tempManager->getTemporaryFile('_fitted_signature.png');
+		if (!$output) {
+			throw new \RuntimeException('Temporary signature file not accessible');
+		}
+		$canvas->writeImage($output);
+		$canvas->clear();
+		$signature->clear();
+		return $output;
 	}
 
 	private function mergeBackgroundWithSignature(string $backgroundPath, string $signaturePath, float $scaleFactor): string {

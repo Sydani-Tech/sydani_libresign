@@ -442,6 +442,28 @@ describe('TextInput.vue - Text Signature Component', () => {
 		expect(contextStub.fillText).toHaveBeenCalledWith('John Doe', 250, 70, 450)
 	})
 
+	it('shows typed text even before the script font finishes loading', async () => {
+		const wrapper = mount(TextInput, { global: { mocks: { t } } })
+		await wrapper.vm.$nextTick()
+		const contextStub = {
+			clearRect: vi.fn(),
+			fillText: vi.fn(),
+			measureText: vi.fn(() => ({ width: 100 })),
+			fillStyle: '',
+			font: '',
+			textAlign: '',
+			textBaseline: '',
+		}
+		wrapper.vm.canvas = {
+			width: 500,
+			height: 140,
+			getContext: vi.fn(() => contextStub),
+		} as unknown as HTMLCanvasElement
+		wrapper.vm.fontReady = false
+		wrapper.vm.renderSignature('David Katchy')
+		expect(contextStub.fillText).toHaveBeenCalledWith('David Katchy', 250, 70, 450)
+	})
+
 	it('validates full name and initials', async () => {
 		const wrapper = mount(TextInput, {
 			global: {

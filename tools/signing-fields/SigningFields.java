@@ -9,6 +9,9 @@ import com.lowagie.text.pdf.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 
 /** Uses the OpenPDF bundled with JSignPdf. Never rewrites an existing revision. */
@@ -92,6 +95,7 @@ public final class SigningFields {
                 String name = name(f);
                 boolean filling = !f[9].equals("-");
                 String value = filling ? decode(f[9]) : "";
+                if (f[1].equals("date") && filling) value = displayDate(value);
                 if (f[1].equals("checkbox") && filling && !value.equals("true") && !value.equals("false"))
                     throw new IllegalArgumentException("Invalid checkbox value");
                 if (fields.getFieldItem(name) == null) {
@@ -136,6 +140,21 @@ public final class SigningFields {
     }
     private static String name(String[] f) { return "libresign_field_" + f[0]; }
     private static String decode(String value) { return new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8); }
+    private static String displayDate(String isoDate) {
+        try {
+            LocalDate date = LocalDate.parse(isoDate);
+            int day = date.getDayOfMonth();
+            String suffix = (day % 100 >= 11 && day % 100 <= 13) ? "th" : switch (day % 10) {
+                case 1 -> "st";
+                case 2 -> "nd";
+                case 3 -> "rd";
+                default -> "th";
+            };
+            return day + suffix + " " + date.format(DateTimeFormatter.ofPattern("MMM, uuuu", Locale.ENGLISH));
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Invalid ISO date value", e);
+        }
+    }
     private static void setVectorCheckboxAppearance(PdfFormField field, PdfWriter writer, Rectangle box) {
         float width = box.getWidth();
         float height = box.getHeight();

@@ -478,7 +478,6 @@ const signerSelected = ref<SignerSummaryRecord | null>(null)
 const selectedSignerIndex = ref(0)
 const palette = [
 	{ type: 'signature', icon: '✎', label: t('libresign', 'Signature') },
-	{ type: 'initial', icon: 'Aa', label: t('libresign', 'Initials') },
 	{ type: 'text', icon: 'T', label: t('libresign', 'Text') },
 	{ type: 'date', icon: '▦', label: t('libresign', 'Date') },
 	{ type: 'checkbox', icon: '☑', label: t('libresign', 'Checkbox') },
@@ -487,7 +486,7 @@ function addField(type: string) {
 	const signer = pdfEditorSigners.value[selectedSignerIndex.value]
 	if (!signer || !canSave.value) return
 	signerSelected.value = signer
-	const sizes: Record<string, [number, number]> = { text: [180, 32], date: [120, 32], checkbox: [24, 24], signature: [180, 64], initial: [85, 48] }
+	const sizes: Record<string, [number, number]> = { text: [180, 32], date: [120, 32], checkbox: [24, 24], signature: [180, 64] }
 	const [width, height] = sizes[type]
 	getPdfEditor()?.startAddingSigner?.(signer, { width, height, type })
 }

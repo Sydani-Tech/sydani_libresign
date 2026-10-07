@@ -13,7 +13,7 @@
 			v-model="value"
 			:label="t('libresign', 'Enter your Full Name or Initials to create Signature')" />
 		<div class="action-buttons">
-			<NcButton :disabled="!isValid || !fontReady" variant="primary" @click="confirmSignature">
+			<NcButton :disabled="!isValid" variant="primary" @click="confirmSignature">
 				{{ t('libresign', 'Save') }}
 			</NcButton>
 			<NcButton @click="close">
@@ -39,8 +39,6 @@
 <script setup lang="ts">
 import { t } from '@nextcloud/l10n'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-
-import '@fontsource/dancing-script/400.css'
 
 import { getCapabilities } from '@nextcloud/capabilities'
 
@@ -79,9 +77,6 @@ const normalizedValue = computed(() => value.value.trim())
 const isValid = computed(() => normalizedValue.value.length > 0)
 
 function renderSignature(newValue: string) {
-	if (!fontReady.value) {
-		return
-	}
 	const currentCanvas = canvas.value
 	if (!currentCanvas) {
 		return
@@ -122,9 +117,7 @@ async function loadSignatureFont() {
 	} catch {
 		fontReady.value = false
 	}
-	if (fontReady.value) {
-		renderSignature(value.value)
-	}
+	renderSignature(value.value)
 }
 
 function applyCanvasSize() {
@@ -177,7 +170,7 @@ function clearCanvas() {
 	if (!context || !canvas.value) {
 		return
 	}
-	context.clearRect(0, 0, canvasWidth, canvasHeight)
+	context.clearRect(0, 0, canvas.value.width, canvas.value.height)
 	imageData.value = ''
 }
 
@@ -197,10 +190,14 @@ function stringToImage() {
 	imageData.value = canvas.value.toDataURL('image/png').replace(/^data:image\/[^;]/, 'data:application/octet-stream')
 }
 
-function confirmSignature() {
-	if (!isValid.value || !fontReady.value || !canvas.value) {
+async function confirmSignature() {
+	if (!isValid.value || !canvas.value) {
 		return
 	}
+	if (!fontReady.value) {
+		await loadSignatureFont()
+	}
+	renderSignature(value.value)
 	stringToImage()
 	handleModal(true)
 }
@@ -239,6 +236,13 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+
+@font-face {
+	font-family: 'Dancing Script';
+	src: url('../../assets/fonts/DancingScript/DancingScript.ttf?inline') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
 
 .container-draw {
 	display: flex;

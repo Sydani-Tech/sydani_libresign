@@ -721,6 +721,32 @@ final class JSignPdfHandlerTest extends \OCA\Libresign\Tests\Unit\TestCase {
 		];
 	}
 
+	public function testSignatureInkIsProportionallyFittedToField(): void {
+		if (!extension_loaded('imagick')) {
+			$this->markTestSkipped('Extension imagick is not loaded');
+		}
+
+		$image = new \Imagick();
+		$image->newImage(700, 200, new \ImagickPixel('transparent'));
+		$image->setImageFormat('png32');
+		$draw = new \ImagickDraw();
+		$draw->setFillColor(new \ImagickPixel('black'));
+		$draw->rectangle(250, 50, 449, 149);
+		$image->drawImage($draw);
+		$path = (string)$this->tempManager->getTemporaryFile('.png');
+		$image->writeImage($path);
+		$image->clear();
+
+		$fittedPath = self::invokePrivate($this->getInstance(), 'fitSignatureToField', [$path, 180.0, 64.0]);
+		$fitted = new \Imagick((string)$fittedPath);
+		$this->assertSame(720, $fitted->getImageWidth());
+		$this->assertSame(256, $fitted->getImageHeight());
+		$fitted->trimImage(0.01);
+		$this->assertGreaterThan(450, $fitted->getImageWidth());
+		$this->assertEqualsWithDelta(2.0, $fitted->getImageWidth() / $fitted->getImageHeight(), 0.03);
+		$fitted->clear();
+	}
+
 	private function createTransparentPng(int $width, int $height): string {
 		$image = new \Imagick();
 		$image->newImage($width, $height, new \ImagickPixel('transparent'));
