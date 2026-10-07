@@ -12,6 +12,7 @@ use OCA\Libresign\Db\File;
 use OCA\Libresign\Db\FileElement;
 use OCA\Libresign\Db\FileElementMapper;
 use OCA\Libresign\Db\FileMapper;
+use OCA\Libresign\Db\SignRequestMapper;
 use OCA\Libresign\ResponseDefinitions;
 use OCP\AppFramework\Utility\ITimeFactory;
 
@@ -23,6 +24,7 @@ class FileElementService {
 		private FileMapper $fileMapper,
 		private FileElementMapper $fileElementMapper,
 		private ITimeFactory $timeFactory,
+		private SignRequestMapper $signRequestMapper,
 	) {
 	}
 
@@ -43,6 +45,7 @@ class FileElementService {
 			$fileElement = new FileElement();
 			$fileElement->setCreatedAt($this->timeFactory->getDateTime());
 		}
+		$originalFileId = $fileElement->getId() ? $fileElement->getFileId() : null;
 		$file = null;
 		if (!empty($properties['uuid'])) {
 			$file = $this->fileMapper->getByUuid($properties['uuid']);
@@ -54,7 +57,35 @@ class FileElementService {
 		if (!$file) {
 			throw new \InvalidArgumentException('File not found for visible element');
 		}
+		if ($this->signRequestMapper->getById((int)$properties['signRequestId'])->getFileId() !== $file->getId()) {
+			throw new \InvalidArgumentException('Field must belong to the assigned signer and file.');
+		}
+		if ($originalFileId !== null && $originalFileId !== $file->getId()) {
+			throw new \InvalidArgumentException('A field cannot be moved to another file.');
+		}
+		$isSigningField = SigningFieldService::isField($properties['type']);
+		// Once signing begins, form fields are part of the signed PDF revision.
+		// Keep the existing behavior for signature and initial positions.
+		if ($file->getSignedNodeId() && ($isSigningField
+			|| in_array($fileElement->getType(), SigningFieldService::TYPES, true))) {
+			throw new \InvalidArgumentException('Form fields cannot change after signing has begun.');
+		}
+		if ($isSigningField) {
+			$properties['metadata'] = SigningFieldService::definition($properties['metadata'] ?? []);
+			$page = $properties['coordinates']['page'] ?? 1;
+			if (!isset($file->getMetadata()['d'][$page - 1])) {
+				throw new \InvalidArgumentException('Field page does not exist in the PDF.');
+			}
+		}
 		$coordinates = $this->translateCoordinatesToInternalNotation($properties, $file);
+		if ($isSigningField) {
+			$dimensions = $file->getMetadata()['d'][$coordinates['page'] - 1];
+			if ($coordinates['llx'] < 0 || $coordinates['lly'] < 0
+				|| $coordinates['urx'] > $dimensions['w'] || $coordinates['ury'] > $dimensions['h']
+				|| $coordinates['urx'] - $coordinates['llx'] < 8 || $coordinates['ury'] - $coordinates['lly'] < 8) {
+				throw new \InvalidArgumentException('Field must fit inside the selected PDF page.');
+			}
+		}
 		$fileElement->setSignRequestId($properties['signRequestId']);
 		$fileElement->setType($properties['type']);
 		$fileElement->setPage($coordinates['page']);
@@ -122,6 +153,11 @@ class FileElementService {
 	}
 
 	public function deleteVisibleElement(int $elementId): void {
+		$existing = $this->fileElementMapper->getById($elementId);
+		if ($this->fileMapper->getById($existing->getFileId())->getSignedNodeId()
+			&& SigningFieldService::isField($existing->getType())) {
+			throw new \InvalidArgumentException('Form fields cannot be deleted after signing has begun.');
+		}
 		$fileElement = new FileElement();
 		$fileElement = $fileElement->fromRow(['id' => $elementId]);
 		$this->fileElementMapper->delete($fileElement);
@@ -174,6 +210,8 @@ class FileElementService {
 				'signRequestId' => $fileElement->getSignRequestId(),
 				'fileId' => $fileElement->getFileId(),
 				'type' => $fileElement->getType(),
+				'metadata' => SigningFieldService::isField($fileElement->getType())
+					? SigningFieldService::definition($elementMetadata ?? []) : [],
 				'coordinates' => [
 					'page' => $fileElement->getPage(),
 					'urx' => $fileElement->getUrx(),

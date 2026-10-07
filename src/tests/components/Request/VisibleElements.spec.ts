@@ -214,6 +214,16 @@ describe('VisibleElements Component - Business Rules', () => {
 			expect(wrapper.vm.canSave).toBe(true)
 		})
 
+		it('locks form fields after the first signature', () => {
+			filesStore.files[1].status = FILE_STATUS.PARTIAL_SIGNED
+			filesStore.files[1].visibleElements = [{
+				elementId: 90, fileId: 1, signRequestId: 4, type: 'text',
+				coordinates: { page: 1, top: 10, left: 20, width: 100, height: 24 },
+			}]
+
+			expect(wrapper.vm.canSave).toBe(false)
+		})
+
 		it('blocks saving when status is SIGNED', () => {
 			filesStore.files[1].status = FILE_STATUS.SIGNED
 
@@ -638,14 +648,14 @@ describe('VisibleElements Component - Business Rules', () => {
 			wrapperWithPdfEditorEvent.vm.signerSelected = filesStore.files[1].signers?.[0] ?? null
 			await wrapperWithPdfEditorEvent.vm.$nextTick()
 
-			expect(wrapperWithPdfEditorEvent.find('button').text()).toContain('Cancel')
+			expect(wrapperWithPdfEditorEvent.find('.tip button').text()).toContain('Cancel')
 			expect(wrapperWithPdfEditorEvent.findAll('.signer-stub')).toHaveLength(1)
 
 			await wrapperWithPdfEditorEvent.find('.pdf-editor-stub').trigger('click')
 			await wrapperWithPdfEditorEvent.vm.$nextTick()
 
 			expect(wrapperWithPdfEditorEvent.vm.signerSelected).toBe(null)
-			expect(wrapperWithPdfEditorEvent.text()).not.toContain('Cancel')
+			expect(wrapperWithPdfEditorEvent.find('.tip').exists()).toBe(false)
 			expect(wrapperWithPdfEditorEvent.findAll('.signer-stub')).toHaveLength(2)
 		})
 	})

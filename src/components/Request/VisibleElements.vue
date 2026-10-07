@@ -32,6 +32,19 @@
 						:text="t('libresign', 'Select a signer to set their signature position')" />
 				</p>
 				<ul class="view-sign-detail__sidebar">
+					<li class="field-palette">
+						<label for="field-recipient">{{ t('libresign', 'Assign fields to') }}</label>
+						<select id="field-recipient" v-model="selectedSignerIndex">
+							<option v-for="(signer, index) in pdfEditorSigners" :key="signer.signRequestId" :value="index">{{ signer.displayName || signer.email }}</option>
+						</select>
+						<p>{{ t('libresign', 'Drag a field onto the document, or click a field and then click its position.') }}</p>
+						<div class="field-palette__buttons">
+							<button v-for="field in palette" :key="field.type" type="button" draggable="true"
+								:disabled="!canSave" @click="addField(field.type)" @dragstart="dragField($event, field.type)">
+								<span aria-hidden="true">{{ field.icon }}</span> {{ field.label }}
+							</button>
+						</div>
+					</li>
 					<li v-if="signerSelected"
 						:class="{ tip: signerSelected }">
 						<span>{{ t('libresign', 'Click on the place you want to add.') }}</span>
@@ -103,6 +116,7 @@ import Signer from '../Signers/Signer.vue'
 import { FILE_STATUS } from '../../constants.js'
 import { getSigningRouteUuid } from '../../utils/signRequestUuid.ts'
 import { useFilesStore } from '../../store/files.js'
+import { isSigningField } from '../../store/signingFields'
 import {
 	aggregateVisibleElementsByFiles,
 	findFileById,
@@ -129,7 +143,8 @@ type EditableRequestChildFile = NonNullable<NonNullable<EditableRequestFile['fil
 type EditableRequestSigner = NonNullable<NonNullable<EditableRequestFile['signers']>[number]>
 
 type EditableVisibleElementPayload = Omit<RequestSignatureVisibleElementPayload, 'type' | 'elementId'> & {
-	type: 'signature'
+	type: string
+	metadata?: { label?: string, required?: boolean }
 	elementId?: RequestSignatureVisibleElementPayload['elementId']
 }
 
@@ -153,6 +168,7 @@ type PdfObject = {
 	visibleElement?: VisibleElementRecord | null
 	documentIndex?: number
 	pageNumber: number
+	metadata?: { label?: string, required?: boolean }
 }
 
 type PdfElementsRef = {
@@ -165,7 +181,7 @@ type PdfElementsRef = {
 
 type PdfEditorRef = ComponentPublicInstance & {
 	$refs?: { pdfElements?: PdfElementsRef }
-	startAddingSigner?: (signer: SignerSummaryRecord | null | undefined, size: { width?: number, height?: number }) => boolean
+	startAddingSigner?: (signer: SignerSummaryRecord | null | undefined, size: { width?: number, height?: number, type?: string }) => boolean
 	cancelAdding?: () => void
 	addSigner?: (signer: SignerSummaryRecord, visibleElement: VisibleElementRecord, options?: { documentIndex?: number }) => Promise<void>
 }
@@ -188,7 +204,7 @@ function isIdentifyMethodRecord(value: unknown): value is IdentifyMethodRecord {
 function normalizeVisibleElement(element: unknown): VisibleElementRecord | null {
 	const candidate = toRecord(element)
 	const coordinates = toRecord(candidate?.coordinates)
-	if (!candidate || !coordinates || candidate.type !== 'signature') {
+	if (!candidate || !coordinates || !['signature', 'initial', 'text', 'date', 'checkbox'].includes(String(candidate.type))) {
 		return null
 	}
 
@@ -210,7 +226,8 @@ function normalizeVisibleElement(element: unknown): VisibleElementRecord | null 
 	}
 
 	return {
-		type: 'signature',
+		type: String(candidate.type),
+		...(toRecord(candidate.metadata) ? { metadata: toRecord(candidate.metadata) as VisibleElementRecord['metadata'] } : {}),
 		elementId,
 		fileId,
 		signRequestId,
@@ -458,6 +475,27 @@ const canRequestSign = ref(loadState('libresign', 'can_request_sign', false))
 const modal = ref(false)
 const loading = ref(false)
 const signerSelected = ref<SignerSummaryRecord | null>(null)
+const selectedSignerIndex = ref(0)
+const palette = [
+	{ type: 'signature', icon: '✎', label: t('libresign', 'Signature') },
+	{ type: 'initial', icon: 'Aa', label: t('libresign', 'Initials') },
+	{ type: 'text', icon: 'T', label: t('libresign', 'Text') },
+	{ type: 'date', icon: '▦', label: t('libresign', 'Date') },
+	{ type: 'checkbox', icon: '☑', label: t('libresign', 'Checkbox') },
+]
+function addField(type: string) {
+	const signer = pdfEditorSigners.value[selectedSignerIndex.value]
+	if (!signer || !canSave.value) return
+	signerSelected.value = signer
+	const sizes: Record<string, [number, number]> = { text: [180, 32], date: [120, 32], checkbox: [24, 24], signature: [180, 64], initial: [85, 48] }
+	const [width, height] = sizes[type]
+	getPdfEditor()?.startAddingSigner?.(signer, { width, height, type })
+}
+function dragField(event: DragEvent, type: string) {
+	addField(type)
+	event.dataTransfer?.setData('application/x-libresign-field', type)
+	if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
+}
 const capabilities = getCapabilities() as LibresignCapabilities
 const signElementsConfig = capabilities.libresign?.config['sign-elements'] ?? {
 	'is-available': false,
@@ -524,8 +562,11 @@ const status = computed(() => Number(document.value.status))
 const isDraft = computed(() => status.value === FILE_STATUS.DRAFT)
 const signElementsAvailable = computed(() => signElementsConfig?.['is-available'] !== false)
 const hasVisibleElements = computed(() => getVisibleElementsFromDocument(document.value as DocumentLike).length > 0)
+const hasSigningFields = computed(() => getVisibleElementsFromDocument(document.value as DocumentLike)
+	.some(element => isSigningField(element.type)))
 const canSave = computed(() => signElementsAvailable.value
-	&& ([FILE_STATUS.DRAFT, FILE_STATUS.ABLE_TO_SIGN, FILE_STATUS.PARTIAL_SIGNED] as number[]).includes(status.value))
+	&& ([FILE_STATUS.DRAFT, FILE_STATUS.ABLE_TO_SIGN, FILE_STATUS.PARTIAL_SIGNED] as number[]).includes(status.value)
+	&& !(status.value === FILE_STATUS.PARTIAL_SIGNED && hasSigningFields.value))
 const canSign = computed(() => status.value === FILE_STATUS.ABLE_TO_SIGN && !!getSigningRouteUuid(document.value))
 const variantOfSaveButton = computed(() => canSave.value ? 'primary' : 'secondary')
 const variantOfSignButton = computed(() => canSave.value ? 'secondary' : 'primary')
@@ -917,7 +958,8 @@ function buildVisibleElements() {
 			}
 
 			visibleElements.push({
-				type: 'signature',
+				type: object.type || 'signature',
+				metadata: object.metadata ?? object.visibleElement?.metadata,
 				fileId: targetFileId,
 				signRequestId,
 				...(object.visibleElement?.elementId !== undefined ? { elementId: object.visibleElement.elementId } : {}),
@@ -981,6 +1023,19 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+.field-palette {
+	display: grid;
+	gap: 10px;
+	padding: 12px 0;
+	select { width: 100%; }
+	&__buttons {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+		button { text-align: start; cursor: grab; min-height: 44px; }
+		span { display: inline-block; min-width: 24px; color: var(--color-primary-element); }
+	}
+}
 .visible-elements-container {
 	display: flex;
 	flex-direction: column;

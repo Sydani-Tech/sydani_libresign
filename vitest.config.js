@@ -4,8 +4,10 @@
  */
 
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
+const configDirectory = fileURLToPath(new URL('.', import.meta.url))
 
 export default defineConfig({
 	plugins: [vue()],
@@ -13,15 +15,15 @@ export default defineConfig({
 		alias: [
 			{
 				find: /^vue-select\/dist\/vue-select\.css$/,
-				replacement: resolve(__dirname, './src/tests/mocks/vue-select.css'),
+				replacement: resolve(configDirectory, './src/tests/mocks/vue-select.css'),
 			},
 			{
 				find: /^vue-select(?:\/dist\/vue-select(?:\.es(?:\.js)?)?)?$/,
-				replacement: resolve(__dirname, './src/tests/mocks/vue-select.js'),
+				replacement: resolve(configDirectory, './src/tests/mocks/vue-select.js'),
 			},
 			{
 				find: /^@\//,
-				replacement: `${resolve(__dirname, './src')}/`,
+				replacement: `${resolve(configDirectory, './src')}/`,
 			},
 		],
 	},

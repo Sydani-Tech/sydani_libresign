@@ -19,7 +19,8 @@ final class FileElementServiceTest extends TestCase {
 		$fileElementMapper = $this->createMock(\OCA\Libresign\Db\FileElementMapper::class);
 		$timeFactory = $this->createMock(\OCP\AppFramework\Utility\ITimeFactory::class);
 
-		return new FileElementService($fileMapper, $fileElementMapper, $timeFactory);
+		return new FileElementService($fileMapper, $fileElementMapper, $timeFactory,
+			$this->createMock(\OCA\Libresign\Db\SignRequestMapper::class));
 	}
 
 	#[DataProvider('dataFormatVisibleElements')]

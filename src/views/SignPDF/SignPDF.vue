@@ -16,7 +16,7 @@
 			:file-names="fileNames.length > 0 ? fileNames : [pdfFileName]"
 			:read-only="true"
 			:emit-object-click="true"
-			@pdf-editor:object-click="dispatchPrimaryAction"
+			@pdf-editor:object-click="ensureSignSidebarOpen"
 			@pdf-editor:end-init="updateSigners" />
 		<div class="button-wrapper">
 			<NcButton
@@ -485,7 +485,10 @@ async function setupElementClickListener() {
 		return
 	}
 
-	elementClickHandler.value = () => dispatchPrimaryAction()
+	elementClickHandler.value = (event: Event) => {
+		if ((event.target as HTMLElement)?.closest('.signing-field')) return
+		dispatchPrimaryAction()
+	}
 	element.addEventListener('click', elementClickHandler.value, true)
 }
 

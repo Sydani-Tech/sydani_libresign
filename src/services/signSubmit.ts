@@ -11,6 +11,7 @@ import type {
 	UserElementRecord,
 	VisibleElementRecord,
 } from '../types/index'
+import { isSigningField } from '../store/signingFields'
 
 export type SignResultData = Omit<Partial<SignActionResponseRecord>, 'file' | 'job'> & {
 	file?: Partial<FileUuidReferenceRecord>
@@ -30,6 +31,7 @@ export type SubmitSignaturePayload = {
 	elements?: Array<{
 		documentElementId: number
 		profileNodeId?: number
+		value?: string | boolean
 	}>
 }
 
@@ -39,7 +41,7 @@ export type SignatureMethodConfig = {
 	token?: string
 }
 
-export type VisibleSignatureElement = Partial<Pick<VisibleElementRecord, 'elementId' | 'signRequestId' | 'type'>>
+export type VisibleSignatureElement = Partial<Pick<VisibleElementRecord, 'elementId' | 'signRequestId' | 'type'>> & { value?: string | boolean }
 
 export type SignatureProfileMap = Record<string, {
 	file?: Partial<Pick<UserElementRecord['file'], 'nodeId' | 'url'>>
@@ -300,6 +302,11 @@ function mapSubmitSignatureElements(
 
 		const payloadElement: NonNullable<SubmitSignaturePayload['elements']>[number] = {
 			documentElementId: element.elementId,
+		}
+		if (isSigningField(element.type)) {
+			payloadElement.value = element.value ?? (element.type === 'checkbox' ? false : '')
+			payloadElements.push(payloadElement)
+			continue
 		}
 
 		if (canCreateSignature && element.type) {

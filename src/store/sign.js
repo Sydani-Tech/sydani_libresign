@@ -16,6 +16,7 @@ import { useSignMethodsStore } from './signMethods.js'
 import { useIdentificationDocumentStore } from './identificationDocument.js'
 import { FILE_STATUS, SIGN_REQUEST_STATUS } from '../constants.js'
 import { isIdDocApprovalContext } from '../utils/signRequestUuid.ts'
+import { useSigningFieldsStore } from './signingFields'
 
 /** @typedef {import('../types/index').SignatureMethodsRecord} SignatureMethodsRecord */
 
@@ -170,6 +171,7 @@ export const useSignStore = defineStore('sign', () => {
 
 	const setFileToSign = (file) => {
 		if (file) {
+			if (file.uuid !== document.value?.uuid) useSigningFieldsStore().reset()
 			errors.value = []
 			document.value = file
 			mounted.value = true

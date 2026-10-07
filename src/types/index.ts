@@ -49,7 +49,9 @@ export type SignatureFlowValue = SignatureFlowMode | 0 | 1 | 2
 export type NewFilePayload = ApiComponents['schemas']['NewFile']
 export type IdentifyMethodRecord = ApiComponents['schemas']['IdentifyMethod']
 export type IdentifyAccountRecord = ApiComponents['schemas']['IdentifyAccount']
-export type VisibleElementRecord = ApiComponents['schemas']['VisibleElement']
+export type VisibleElementRecord = ApiComponents['schemas']['VisibleElement'] & {
+	metadata?: { label?: string, required?: boolean }
+}
 export type FileSettings = ApiComponents['schemas']['FolderSettings']
 export type IdentifyMethodSetting = AdminComponents['schemas']['IdentifyMethodSetting']
 export type ProgressPayload = ApiComponents['schemas']['ProgressPayload']
@@ -86,7 +88,10 @@ export type RequestSignaturePayload = RequestSignatureCreatePayload | RequestSig
 export type RequestSignatureResponse = ApiOcsResponseData<ApiOperations['request_signature-update-sign'], 200>
 export type RequestSignatureSignerPayload = NonNullable<RequestSignatureUpdatePayload['signers']>[number]
 export type RequestSignatureSignerResponse = NonNullable<RequestSignatureResponse['signers']>[number]
-export type RequestSignatureVisibleElementPayload = NonNullable<RequestSignatureUpdatePayload['visibleElements']>[number]
+export type RequestSignatureVisibleElementPayload = Omit<NonNullable<RequestSignatureUpdatePayload['visibleElements']>[number], 'elementId'> & {
+	elementId?: number
+	metadata?: { label?: string, required?: boolean }
+}
 export type FileStatus = FileListEntry['status']
 export type FileStatusText = FileListEntry['statusText']
 export type SelectedFileView = Pick<FileListEntry, 'id' | 'nodeId' | 'name' | 'status' | 'statusText'>

@@ -94,6 +94,7 @@ export function normalizeVisibleElementRecord(element: unknown): VisibleElementR
 		signRequestId,
 		fileId,
 		type: candidate.type,
+		...(toRecord(candidate.metadata) ? { metadata: toRecord(candidate.metadata) as VisibleElementRecord['metadata'] } : {}),
 		coordinates: {
 			...(page !== undefined ? { page } : {}),
 			...(left !== undefined ? { left } : {}),

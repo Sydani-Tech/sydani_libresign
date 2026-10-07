@@ -51,6 +51,7 @@ class JSignPdfHandler extends Pkcs12Handler {
 		protected CertificateEngineFactory $certificateEngineFactory,
 		protected JavaHelper $javaHelper,
 		private DocMdpConfigService $docMdpConfigService,
+		private \OCA\Libresign\Service\PdfSigningFieldsService $pdfSigningFieldsService,
 	) {
 	}
 
@@ -254,6 +255,7 @@ class JSignPdfHandler extends Pkcs12Handler {
 	#[\Override]
 	public function getSignedContent(): string {
 		$normalizedPdf = $this->normalizePdfVersion($this->getInputFile()->getContent());
+		$normalizedPdf = $this->pdfSigningFieldsService->fill($normalizedPdf, $this->getSignatureParams()['SigningFields'] ?? []);
 		$hashAlgorithm = $this->getHashAlgorithm($normalizedPdf);
 		$param = $this->getJSignParam();
 
@@ -333,6 +335,7 @@ class JSignPdfHandler extends Pkcs12Handler {
 			$originalParam = clone $param;
 
 			foreach ($visibleElements as $element) {
+				unset($params['--bg-scale'], $params['--bg-path'], $params['--img-path']);
 				$elementIndex++;
 				$params['-pg'] = $element->getFileElement()->getPage();
 				if ($params['-pg'] <= self::PAGE_FIRST) {
@@ -364,6 +367,7 @@ class JSignPdfHandler extends Pkcs12Handler {
 						);
 					} elseif ($signatureImagePath) {
 						$params['--bg-path'] = $signatureImagePath;
+						$params['--bg-scale'] = -1;
 					}
 				} elseif ($params['--l2-text'] === '""') {
 					if ($backgroundPathForElement && $signatureImagePath) {

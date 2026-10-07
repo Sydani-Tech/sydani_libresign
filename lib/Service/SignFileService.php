@@ -280,6 +280,10 @@ class SignFileService {
 
 		foreach ($fileElements as $fileElement) {
 			$fileElementId = $fileElement->getId();
+			if (SigningFieldService::isField($fileElement->getType())) {
+				SigningFieldService::submittedValue($fileElement, $list);
+				continue;
+			}
 			if (!$canCreateSignature) {
 				$newElements[$fileElementId] = new VisibleElementAssoc($fileElement);
 				continue;
@@ -833,6 +837,19 @@ class SignFileService {
 	}
 
 	protected function updateSignRequest(string $hash): void {
+		$metadata = $this->signRequest->getMetadata() ?? [];
+		$values = [];
+		foreach ($this->fileElementMapper->getByFileIdAndSignRequestId($this->signRequest->getFileId(), $this->signRequest->getId()) as $field) {
+			if (SigningFieldService::isField($field->getType())) {
+				$values[] = ['elementId' => $field->getId(), 'type' => $field->getType(),
+					'label' => SigningFieldService::definition($field->getMetadata() ?? [])['label'],
+					'value' => SigningFieldService::submittedValue($field, $this->elementsInput)];
+			}
+		}
+		if ($values) {
+			$metadata['signing_fields'] = $values;
+			$this->signRequest->setMetadata($metadata);
+		}
 		$lastSignedDate = $this->getEngine()->getLastSignedDate();
 		$this->signRequest->setSigned($lastSignedDate);
 		$this->signRequest->setSignedHash($hash);
@@ -992,6 +1009,27 @@ class SignFileService {
 	}
 
 	private function addMetadataToSignatureParams(array $signatureParams): array {
+		$fieldPlan = [];
+		$fileId = $this->libreSignFile?->getId();
+		$fields = $fileId !== null ? $this->fileElementMapper->getByFileId($fileId) : [];
+		foreach ($fields as $field) {
+			if (!SigningFieldService::isField($field->getType())) {
+				continue;
+			}
+			$entry = [
+				'id' => $field->getId(), 'type' => $field->getType(),
+				'page' => $field->getPage(), 'llx' => $field->getLlx(), 'lly' => $field->getLly(),
+				'urx' => $field->getUrx(), 'ury' => $field->getUry(),
+				'metadata' => SigningFieldService::definition($field->getMetadata() ?? []),
+			];
+			if ($this->signRequest instanceof SignRequestEntity && $field->getSignRequestId() === $this->signRequest->getId()) {
+				$entry['value'] = SigningFieldService::submittedValue($field, $this->elementsInput);
+			}
+			$fieldPlan[] = $entry;
+		}
+		if ($fieldPlan) {
+			$signatureParams['SigningFields'] = $fieldPlan;
+		}
 		$signRequestMetadata = $this->signRequest->getMetadata();
 		if (isset($signRequestMetadata['remote-address'])) {
 			$signatureParams['SignerIP'] = $signRequestMetadata['remote-address'];

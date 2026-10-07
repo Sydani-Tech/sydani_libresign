@@ -4,6 +4,15 @@
 -->
 <template>
 	<div class="document-sign">
+		<div v-if="signingFields.length" class="signing-fields-summary">
+			<h3>{{ t('libresign', 'Complete your fields') }}</h3>
+			<p>{{ t('libresign', 'Fill the highlighted fields on the document before signing.') }}</p>
+			<label v-for="field in signingFields" :key="field.elementId" class="signing-fields-summary__field">
+				<span>{{ field.metadata?.label || field.type }}{{ field.metadata?.required !== false ? ' *' : '' }}</span>
+				<input v-if="field.type === 'checkbox'" v-model="signingFieldsStore.values[field.elementId]" type="checkbox">
+				<input v-else v-model="signingFieldsStore.values[field.elementId]" :type="field.type === 'date' ? 'date' : 'text'" maxlength="500">
+			</label>
+		</div>
 		<div class="sign-elements">
 			<Signatures v-if="hasSignatures" />
 		</div>
@@ -239,6 +248,7 @@ import type {
 	SignatureMethodConfig,
 	SubmitSignaturePayload,
 } from '../../../services/signSubmit'
+import { isSigningField, useSigningFieldsStore } from '../../../store/signingFields'
 
 type OpenApiAccountMe = operations['account-me']['responses'][200]['content']['application/json']['ocs']['data']
 type LibreSignAccountMe = Omit<OpenApiAccountMe, 'settings'> & {
@@ -445,6 +455,9 @@ let requirementValidator: SigningRequirementValidator | null = null
 let actionHandler: SignFlowHandler | null = null
 const currentDocument = computed<SignDocument>(() => signStore.document)
 const visibleElementsDocument = computed(() => normalizeDocumentForVisibleElements(currentDocument.value))
+const signingFieldsStore = useSigningFieldsStore()
+const signingFields = computed(() => getVisibleElementsFromDocument(visibleElementsDocument.value)
+	.filter(field => isSigningField(field.type) && currentUserSignRequestIds.value.has(field.signRequestId)))
 const currentUserSignRequestIds = computed(() => new Set(getCurrentUserSignRequestIds(visibleElementsDocument.value)))
 
 const elements = computed(() => {
@@ -459,18 +472,21 @@ const elements = computed(() => {
 			if (!row.type || row.signRequestId === undefined) {
 				return false
 			}
+			if (isSigningField(row.type)) return signRequestIds.has(row.signRequestId)
 			const signatureData = signatureElementsStore.signs[row.type]
 			const hasSignature = Boolean(signatureData?.createdAt)
 			return hasSignature && signRequestIds.has(row.signRequestId)
 		})
+		.map(row => isSigningField(row.type) ? { ...row, value: signingFieldsStore.values[row.elementId] ?? (row.type === 'checkbox' ? false : '') } : row)
 })
 
-const hasSignatures = computed(() => elements.value.length > 0)
+const hasSignatures = computed(() => elements.value.some(row => !isSigningField(row.type)))
 const needCreateSignature = computed(() => {
 	if (!canCreateSignature.value || hasSignatures.value) {
 		return false
 	}
-	return hasVisibleElementsForCurrentUser(visibleElementsDocument.value)
+	return getVisibleElementsFromDocument(visibleElementsDocument.value)
+		.some(row => !isSigningField(row.type) && currentUserSignRequestIds.value.has(row.signRequestId))
 })
 const needIdentificationDocuments = computed(() => identificationDocumentStore.showDocumentsComponent())
 const canCreateSignature = computed(() => {
@@ -684,6 +700,13 @@ let submitSignature = async (methodConfig: SignatureMethodConfig = {}) => {
 function confirmSignDocument() {
 	ensureServices()
 	signStore.clearSigningErrors()
+	for (const field of signingFields.value) {
+		const value = signingFieldsStore.values[field.elementId]
+		if (field.metadata?.required !== false && (field.type === 'checkbox' ? value !== true : !String(value ?? '').trim())) {
+			showError(t('libresign', 'Please complete field: {label}', { label: field.metadata?.label || field.type }))
+			return
+		}
+	}
 
 	const unmetRequirement = requirementValidator!.getFirstUnmetRequirement({
 		errors: signStore.errors,

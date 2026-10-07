@@ -90,6 +90,7 @@ namespace OCA\Libresign;
  *     fileId: int,
  *     type: string,
  *     coordinates: LibresignCoordinate,
+ *     metadata?: array{label?: string, required?: bool},
  * }
  * @psalm-type LibresignSignatureMethod = array{
  *     enabled: bool,

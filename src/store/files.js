@@ -885,6 +885,14 @@ const _filesStore = defineStore('files', () => {
 					fileId: element.fileId,
 					type: element.type,
 					coordinates,
+					...(['text', 'date', 'checkbox'].includes(element.type)
+						? {
+							metadata: {
+								label: element.metadata?.label || '',
+								required: element.metadata?.required !== false,
+							},
+						}
+						: {}),
 				}
 			})
 			.filter((element) => element && element.coordinates && element.type)

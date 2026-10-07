@@ -111,6 +111,7 @@ appstore:
 		js \
 		l10n \
 		lib \
+		resources \
 		templates \
 		vendor \
 		3rdparty \
@@ -178,6 +179,7 @@ appstore:
 verify-appstore-package:
 	test -d $(appstore_sign_dir)/$(app_name)/css
 	test -d $(appstore_sign_dir)/$(app_name)/js
+	test -f $(appstore_sign_dir)/$(app_name)/resources/signing-fields.jar
 	find $(appstore_sign_dir)/$(app_name)/js -maxdepth 1 -name 'pdf.worker.min-*.mjs' | grep -q .
 	if [ -d dist ]; then \
 		test -d $(appstore_sign_dir)/$(app_name)/dist; \

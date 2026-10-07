@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="pdf-editor">
+	<div class="pdf-editor" @dragover.prevent @drop.prevent="handlePaletteDrop">
 		<PDFElements ref="pdfElements"
 			:init-files="files"
 			:init-file-names="fileNames"
@@ -23,6 +23,13 @@
 			@pdf-elements:adding-ended="handleAddingEnded">
 			<template #actions="slotProps">
 				<slot name="actions" v-bind="slotProps">
+					<template v-if="isSigningField(slotProps.object?.type)">
+						<input :value="slotProps.object.metadata?.label ?? slotProps.object.visibleElement?.metadata?.label ?? ''"
+							:aria-label="t('libresign', 'Field label')" :placeholder="t('libresign', 'Field label')" maxlength="100"
+							@change="updateFieldMetadata(slotProps.object, { label: ($event.target as HTMLInputElement).value })" @pointerdown.stop @mousedown.stop>
+						<label><input type="checkbox" :checked="(slotProps.object.metadata ?? slotProps.object.visibleElement?.metadata)?.required !== false"
+							@change="updateFieldMetadata(slotProps.object, { required: ($event.target as HTMLInputElement).checked })" @pointerdown.stop @mousedown.stop> {{ t('libresign', 'Required') }}</label>
+					</template>
 					<SignerMenu
 						v-if="hasMultipleSigners && slotProps.object?.signer"
 						:signers="signers"
@@ -60,6 +67,14 @@
 					:label="getSignerLabel(object.signer)"
 					:signer="object.signer" />
 			</template>
+			<template #element-initial="{ object }">
+				<SignatureBox :label="getSignerLabel(object.signer)" :signer="object.signer" />
+			</template>
+			<template v-for="fieldType in ['text', 'date', 'checkbox']" #[`element-${fieldType}`]="{ object }">
+				<SigningFieldBox :key="fieldType" :type="fieldType" :field="object.visibleElement" :metadata="object.metadata"
+					:signer-label="getSignerLabel(object.signer)"
+					:editable="readOnly && object.signer?.me === true && !object.signer?.signed" />
+			</template>
 		</PDFElements>
 	</div>
 </template>
@@ -81,6 +96,8 @@ import {
 
 import SignerMenu from './SignerMenu.vue'
 import SignatureBox from './SignatureBox.vue'
+import SigningFieldBox from './SigningFieldBox.vue'
+import { isSigningField } from '../../store/signingFields'
 import {
 	buildPdfEditorSignerPayload,
 	calculatePdfPlacement,
@@ -110,6 +127,7 @@ type PdfEditorObject = {
 	height: number
 	signer?: SignerSummaryRecord | SignerDetailRecord | null
 	visibleElement?: VisibleElementRecord | null
+	metadata?: { label?: string, required?: boolean }
 	documentIndex?: number
 }
 type PdfDocument = {
@@ -160,7 +178,7 @@ const emit = defineEmits<{
 
 const pdfElements = ref<PdfElementsInstance | null>(null)
 
-const ignoreClickOutsideSelectors = computed(() => ['.action-item__popper', '.action-item'])
+const ignoreClickOutsideSelectors = computed(() => ['.action-item__popper', '.action-item', '.pdf-elements-actions-toolbar'])
 
 const toolbarStyleVars = computed(() => ({
 	'--pdf-elements-toolbar-gap': '10px',
@@ -285,7 +303,7 @@ function handleAddingEnded(event: Event) {
 		reason: (event as CustomEvent)?.detail?.reason,
 	})
 }
-function startAddingSigner(signer: SignerSummaryRecord | SignerDetailRecord | null | undefined, size: { width?: number, height?: number }) {
+function startAddingSigner(signer: SignerSummaryRecord | SignerDetailRecord | null | undefined, size: { width?: number, height?: number, type?: string }) {
 	if (!pdfElements.value || !size?.width || !size?.height) {
 		return false
 	}
@@ -296,15 +314,35 @@ function startAddingSigner(signer: SignerSummaryRecord | SignerDetailRecord | nu
 	}
 
 	pdfElements.value.startAddingElement({
-		type: 'signature',
+		type: size.type || 'signature',
 		x: 0,
 		y: 0,
 		width: size.width,
 		height: size.height,
 		signer: signerPayload,
+		metadata: { label: '', required: true },
 	})
 
 	return true
+}
+
+function updateFieldMetadata(object: PdfEditorObject, patch: { label?: string, required?: boolean }) {
+	const location = findObjectLocation(pdfElements.value, object.id)
+	if (!location) return
+	const metadata = { ...(object.metadata ?? object.visibleElement?.metadata), ...patch }
+	pdfElements.value?.updateObject(location.docIndex, object.id, { metadata })
+}
+
+// Native HTML drag/drop complements click-to-place and keyboard placement.
+function handlePaletteDrop(event: DragEvent) {
+	if (props.readOnly || !event.dataTransfer?.types.includes('application/x-libresign-field')) return
+	const target = (event.target as HTMLElement).closest('.overlay')
+	if (!target || !pdfElements.value?.isAddingMode) return
+	const editor = pdfElements.value as PdfElementsInstance & {
+		updatePreviewFromClientPoint: (x: number, y: number) => boolean
+		finishAdding: () => void
+	}
+	if (editor.updatePreviewFromClientPoint(event.clientX, event.clientY)) editor.finishAdding()
 }
 
 function cancelAdding() {
@@ -396,6 +434,9 @@ defineExpose({
 	height: 100%;
 	overflow: hidden;
 	overscroll-behavior: contain;
+	:deep(.draggable-wrapper:has(.signing-field--editable) > .draggable-element) {
+		pointer-events: auto !important;
+	}
 }
 
 </style>

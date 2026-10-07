@@ -1142,6 +1142,25 @@ describe('files store - critical business rules', () => {
 	})
 
 	describe('RULE: saveOrUpdateSignatureRequest payload rules', () => {
+		it('preserves only signing-field settings in the request payload', async () => {
+			const store = useFilesStore()
+			const untrustedMetadata = { label: 'Legal name', required: false, ignored: 'not sent' }
+			store.selectedFileId = 1
+			store.files[1] = { id: 1, name: 'contract.pdf', signers: [] }
+			axiosMock.mockResolvedValue({ data: { ocs: { data: { id: 1, signers: [] } } } })
+
+			await store.saveOrUpdateSignatureRequest({ visibleElements: [{
+				fileId: 1,
+				signRequestId: 12,
+				type: 'text',
+				coordinates: { page: 1, top: 10, left: 20, width: 90, height: 20 },
+				metadata: untrustedMetadata,
+			}] })
+
+			const config = axiosMock.mock.calls[0][0]
+			expect(config.data.visibleElements[0].metadata).toEqual({ label: 'Legal name', required: false })
+		})
+
 			it('sends signers field as canonical payload', async () => {
 				const store = useFilesStore()
 				store.selectedFileId = 1

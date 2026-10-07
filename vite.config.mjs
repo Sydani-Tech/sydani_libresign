@@ -6,15 +6,28 @@
 import { createAppConfig } from '@nextcloud/vite-config'
 import { resolve } from 'node:path'
 
-export default createAppConfig({
+const entries = {
 	main: resolve('src/main.ts'),
 	init: resolve('src/init.ts'),
 	tab: resolve('src/tab.ts'),
 	settings: resolve('src/settings.ts'),
 	external: resolve('src/external.ts'),
 	validation: resolve('src/validation.ts'),
-}, {
+}
+const selectedEntry = process.env.LIBRESIGN_BUILD_ENTRY
+if (selectedEntry && !Object.hasOwn(entries, selectedEntry)) {
+	throw new Error(`Unknown LibreSign entry: ${selectedEntry}`)
+}
+
+export default createAppConfig(selectedEntry ? { [selectedEntry]: entries[selectedEntry] } : entries, {
+	// Allow a lower-memory staging build without changing production's default.
+	minify: process.env.LIBRESIGN_MINIFY !== 'false',
+	emptyOutputDirectory: !selectedEntry,
+	extractLicenseInformation: selectedEntry ? false : undefined,
 	config: {
+		build: {
+			sourcemap: process.env.LIBRESIGN_SOURCEMAP !== 'false',
+		},
 		server: {
 			port: 3000,
 			host: '0.0.0.0',
