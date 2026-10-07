@@ -26,13 +26,17 @@
 			</NcNoteCard>
 			<div v-if="needCreateSignature" class="no-signature-warning">
 				<p>
-					{{ t('libresign', 'You do not have any signature defined.') }}
+					{{ missingSignatureType === 'initial'
+						? t('libresign', 'You do not have any initials defined.')
+						: t('libresign', 'You do not have any signature defined.') }}
 				</p>
 				<NcButton :wide="true"
 					:disabled="loading"
 					variant="primary"
 					@click="openModal('createSignature')">
-					{{ t('libresign', 'Define your signature.') }}
+					{{ missingSignatureType === 'initial'
+						? t('libresign', 'Define your initials.')
+						: t('libresign', 'Define your signature.') }}
 				</NcButton>
 			</div>
 			<div v-else-if="signMethodsStore.needCertificate()">
@@ -163,7 +167,7 @@
 			:text-editor="true"
 			:file-editor="true"
 			:sign-request-uuid="signRequestUuid"
-			type="signature"
+			:type="missingSignatureType || 'signature'"
 			@save="saveSignature"
 			@close="signMethodsStore.closeModal('createSignature')" />
 		<CreatePassword @password:created="onSignatureFileCreated" />
@@ -481,13 +485,21 @@ const elements = computed(() => {
 })
 
 const hasSignatures = computed(() => elements.value.some(row => !isSigningField(row.type)))
-const needCreateSignature = computed(() => {
-	if (!canCreateSignature.value || hasSignatures.value) {
-		return false
+const missingSignatureType = computed(() => {
+	if (!canCreateSignature.value) {
+		return null
 	}
-	return getVisibleElementsFromDocument(visibleElementsDocument.value)
-		.some(row => !isSigningField(row.type) && currentUserSignRequestIds.value.has(row.signRequestId))
+	const neededTypes = new Set(getVisibleElementsFromDocument(visibleElementsDocument.value)
+		.filter(row => !isSigningField(row.type) && currentUserSignRequestIds.value.has(row.signRequestId))
+		.map(row => row.type))
+	for (const type of ['signature', 'initial'] as const) {
+		if (neededTypes.has(type) && !signatureElementsStore.signs[type]?.createdAt) {
+			return type
+		}
+	}
+	return null
 })
+const needCreateSignature = computed(() => missingSignatureType.value !== null)
 const needIdentificationDocuments = computed(() => identificationDocumentStore.showDocumentsComponent())
 const canCreateSignature = computed(() => {
 	const capabilities = getCapabilities() as LibresignCapabilities

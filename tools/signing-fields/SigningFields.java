@@ -103,6 +103,9 @@ public final class SigningFields {
                         check.setBorderColor(java.awt.Color.BLACK);
                         check.setChecked(value.equals("true"));
                         field = check.getCheckField();
+                        // The default checkbox uses an unembedded ZapfDingbats glyph.
+                        // Some PDF viewers render its border but silently omit the tick.
+                        setVectorCheckboxAppearance(field, stamper.getWriter(), rectangle(f));
                     } else {
                         TextField text = new TextField(stamper.getWriter(), rectangle(f), name);
                         text.setFont(font);
@@ -133,6 +136,25 @@ public final class SigningFields {
     }
     private static String name(String[] f) { return "libresign_field_" + f[0]; }
     private static String decode(String value) { return new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8); }
+    private static void setVectorCheckboxAppearance(PdfFormField field, PdfWriter writer, Rectangle box) {
+        float width = box.getWidth();
+        float height = box.getHeight();
+        for (boolean checked : new boolean[] { false, true }) {
+            PdfAppearance appearance = PdfAppearance.createAppearance(writer, width, height);
+            appearance.setColorStroke(java.awt.Color.BLACK);
+            appearance.setLineWidth(0.75f);
+            appearance.rectangle(0.375f, 0.375f, width - 0.75f, height - 0.75f);
+            appearance.stroke();
+            if (checked) {
+                appearance.setLineWidth(Math.max(1.5f, Math.min(width, height) * 0.095f));
+                appearance.moveTo(width * 0.19f, height * 0.51f);
+                appearance.lineTo(width * 0.42f, height * 0.27f);
+                appearance.lineTo(width * 0.82f, height * 0.76f);
+                appearance.stroke();
+            }
+            field.setAppearance(PdfAnnotation.APPEARANCE_NORMAL, checked ? "Yes" : "Off", appearance);
+        }
+    }
     private static Rectangle rectangle(String[] f) {
         return new Rectangle(Integer.parseInt(f[3]), Integer.parseInt(f[4]), Integer.parseInt(f[5]), Integer.parseInt(f[6]));
     }

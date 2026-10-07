@@ -356,6 +356,11 @@ class JSignPdfHandler extends Pkcs12Handler {
 					: '';
 
 				$signatureImagePath = $element->getTempFile();
+				if ($backgroundType === 'deleted'
+					&& $renderMode === SignerElementsService::RENDER_MODE_GRAPHIC_ONLY
+					&& (!$signatureImagePath || !is_file($signatureImagePath))) {
+					throw new LibresignException('Create a signature or initials for every placed signature field before signing.');
+				}
 				if ($backgroundType === 'deleted') {
 					if ($renderMode === SignerElementsService::RENDER_MODE_SIGNAME_AND_DESCRIPTION) {
 						$params['--render-mode'] = SignerElementsService::RENDER_MODE_GRAPHIC_AND_DESCRIPTION;

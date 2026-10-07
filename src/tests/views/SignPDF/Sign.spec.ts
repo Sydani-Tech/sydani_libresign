@@ -1398,6 +1398,37 @@ describe('Sign.vue - signWithTokenCode', () => {
 	})
 
 	describe('Sign.vue - envelope visible elements', () => {
+		it('requires initials even when the signer already has a signature', async () => {
+			setActivePinia(createPinia())
+			const { useSignStore } = await import('../../../store/sign.js')
+			const { useSignatureElementsStore } = await import('../../../store/signatureElements.js')
+			const signStore = useSignStore()
+			const signatureElementsStore = useSignatureElementsStore()
+			signStore.document = createSignDocument({
+				signers: [{ signRequestId: 501, me: true }],
+				visibleElements: [
+					{ elementId: 201, fileId: 1, signRequestId: 501, type: 'signature', coordinates: { page: 1, left: 10, top: 20, width: 180, height: 64 } },
+					{ elementId: 202, fileId: 1, signRequestId: 501, type: 'initial', coordinates: { page: 1, left: 200, top: 20, width: 85, height: 48 } },
+				],
+			})
+			signatureElementsStore.signs.signature = {
+				id: 1, type: 'signature', file: { url: '/sig.png', nodeId: 11623 },
+				starred: 0, createdAt: '2024-01-01',
+			}
+
+			const wrapper = await mountRealSignComponent()
+			const signVm = wrapper.vm as typeof wrapper.vm & {
+				missingSignatureType: string | null
+				needCreateSignature: boolean
+				loading: boolean
+			}
+			expect(signVm.missingSignatureType).toBe('initial')
+			expect(signVm.needCreateSignature).toBe(true)
+			signVm.loading = false
+			await wrapper.vm.$nextTick()
+			expect(wrapper.text()).toContain('You do not have any initials defined.')
+		})
+
 		it('includes elements from child files when document has no signers', async () => {
 			setActivePinia(createPinia())
 

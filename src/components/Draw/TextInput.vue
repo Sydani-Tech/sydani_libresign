@@ -13,7 +13,7 @@
 			v-model="value"
 			:label="t('libresign', 'Enter your Full Name or Initials to create Signature')" />
 		<div class="action-buttons">
-			<NcButton :disabled="!isValid" variant="primary" @click="confirmSignature">
+			<NcButton :disabled="!isValid || !fontReady" variant="primary" @click="confirmSignature">
 				{{ t('libresign', 'Save') }}
 			</NcButton>
 			<NcButton @click="close">
@@ -40,7 +40,7 @@
 import { t } from '@nextcloud/l10n'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
-import '@fontsource/dancing-script'
+import '@fontsource/dancing-script/400.css'
 
 import { getCapabilities } from '@nextcloud/capabilities'
 
@@ -69,6 +69,7 @@ const canvasHeight = signElementsConfig['signature-height']
 const value = ref('')
 const modal = ref(false)
 const imageData = ref('')
+const fontReady = ref(typeof document === 'undefined' || !document.fonts)
 const scale = ref(1)
 const canvasWrapper = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
@@ -77,7 +78,10 @@ const input = ref<{ focus: () => void } | null>(null)
 const normalizedValue = computed(() => value.value.trim())
 const isValid = computed(() => normalizedValue.value.length > 0)
 
-watch(value, (newValue) => {
+function renderSignature(newValue: string) {
+	if (!fontReady.value) {
+		return
+	}
 	const currentCanvas = canvas.value
 	if (!currentCanvas) {
 		return
@@ -88,38 +92,40 @@ watch(value, (newValue) => {
 	}
 	context.clearRect(0, 0, currentCanvas.width, currentCanvas.height)
 	context.fillStyle = 'black'
-	context.font = "30px 'Dancing Script'"
-	const paddingX = 15
-	const maxWidth = Math.max(0, currentCanvas.width - (paddingX * 2))
-	const lineHeight = 36
-	const words = String(newValue).trim().split(/\s+/).filter(Boolean)
-
-	const lines: string[] = []
-	let line = ''
-	for (const word of words) {
-		const testLine = line ? `${line} ${word}` : word
-		if (context.measureText(testLine).width <= maxWidth || !line) {
-			line = testLine
-		} else {
-			lines.push(line)
-			line = word
+	const text = String(newValue).trim().replace(/\s+/g, ' ')
+	if (!text) {
+		return
+	}
+	const maxWidth = currentCanvas.width * 0.9
+	let fontSize = Math.floor(Math.min(currentCanvas.height * 0.7, currentCanvas.width * 0.25))
+	while (fontSize > 12) {
+		context.font = `${fontSize}px 'Dancing Script'`
+		if (context.measureText(text).width <= maxWidth) {
+			break
 		}
+		fontSize -= 1
 	}
-	if (line) {
-		lines.push(line)
-	}
-
 	context.textAlign = 'center'
 	context.textBaseline = 'middle'
+	context.fillText(text, currentCanvas.width / 2, currentCanvas.height / 2, maxWidth)
+}
 
-	const totalHeight = lines.length * lineHeight
-	const startY = (currentCanvas.height / 2) - ((totalHeight - lineHeight) / 2)
-	const centerX = currentCanvas.width / 2
+watch(value, renderSignature)
 
-	lines.forEach((text, index) => {
-		context.fillText(text, centerX, startY + (index * lineHeight))
-	})
-})
+async function loadSignatureFont() {
+	if (!document.fonts) {
+		return
+	}
+	try {
+		await document.fonts.load("70px 'Dancing Script'")
+		fontReady.value = document.fonts.check("70px 'Dancing Script'")
+	} catch {
+		fontReady.value = false
+	}
+	if (fontReady.value) {
+		renderSignature(value.value)
+	}
+}
 
 function applyCanvasSize() {
 	if (!canvasWrapper.value || !canvas.value) {
@@ -145,6 +151,7 @@ function applyCanvasSize() {
 	canvas.value.height = finalHeight
 	canvas.value.style.width = `${finalWidth}px`
 	canvas.value.style.height = `${finalHeight}px`
+	renderSignature(value.value)
 }
 
 function saveSignature() {
@@ -191,7 +198,7 @@ function stringToImage() {
 }
 
 function confirmSignature() {
-	if (!isValid.value || !canvas.value) {
+	if (!isValid.value || !fontReady.value || !canvas.value) {
 		return
 	}
 	stringToImage()
@@ -201,6 +208,7 @@ function confirmSignature() {
 onMounted(() => {
 	nextTick(() => {
 		applyCanvasSize()
+		void loadSignatureFont()
 	})
 	setFocus()
 })
@@ -213,6 +221,9 @@ defineExpose({
 	modal,
 	imageData,
 	scale,
+	fontReady,
+	renderSignature,
+	loadSignatureFont,
 	isValid,
 	applyCanvasSize,
 	saveSignature,

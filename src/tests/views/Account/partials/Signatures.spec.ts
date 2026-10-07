@@ -43,5 +43,8 @@ describe('Signatures.vue', () => {
 		expect(wrapper.text()).toContain('Your signatures')
 		expect(wrapper.find('.slot-title').text()).toContain('Signature')
 		expect(wrapper.find('.slot-empty').text()).toContain('No signature, click here to create a new one')
+		expect(wrapper.findAll('.signature-stub')).toHaveLength(2)
+		expect(wrapper.text()).toContain('Initials')
+		expect(wrapper.text()).toContain('No initials, click here to create a new one')
 	})
 })

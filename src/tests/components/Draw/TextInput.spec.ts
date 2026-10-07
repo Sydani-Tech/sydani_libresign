@@ -420,10 +420,26 @@ describe('TextInput.vue - Text Signature Component', () => {
 		})
 
 		await wrapper.vm.$nextTick()
-		wrapper.vm.value = 'John Doe'
-		await wrapper.vm.$nextTick()
+		const contextStub = {
+			clearRect: vi.fn(),
+			fillText: vi.fn(),
+			measureText: vi.fn(() => ({ width: 250 })),
+			fillStyle: '',
+			font: '',
+			textAlign: '',
+			textBaseline: '',
+		}
+		wrapper.vm.canvas = {
+			width: 500,
+			height: 140,
+			getContext: vi.fn(() => contextStub),
+		} as unknown as HTMLCanvasElement
+		wrapper.vm.fontReady = true
+		wrapper.vm.renderSignature('John Doe')
 
-		expect(wrapper.vm.value).toBe('John Doe')
+		expect(contextStub.font).toContain('Dancing Script')
+		expect(Number.parseInt(contextStub.font, 10)).toBeGreaterThan(30)
+		expect(contextStub.fillText).toHaveBeenCalledWith('John Doe', 250, 70, 450)
 	})
 
 	it('validates full name and initials', async () => {

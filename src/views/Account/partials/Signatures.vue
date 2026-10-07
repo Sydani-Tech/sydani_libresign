@@ -16,7 +16,7 @@
 			</template>
 		</Signature>
 
-		<Signature v-if="false" type="initial">
+		<Signature type="initial">
 			<template #title>
 				{{ t('libresign', 'Initials') }}
 			</template>
