@@ -119,6 +119,22 @@ describe('visibleElementsService', () => {
 
 			expect(result).toEqual([700, 501])
 		})
+
+		it('includes child request ids attached to the current parent signer only', () => {
+			const document = {
+				signers: [
+					{ me: true, signRequestId: 700, visibleElements: [
+						{ elementId: 201, fileId: 10, signRequestId: 501, type: 'text', coordinates: { page: 1 } },
+					] },
+					{ me: false, signRequestId: 701, visibleElements: [
+						{ elementId: 202, fileId: 10, signRequestId: 502, type: 'text', coordinates: { page: 1 } },
+					] },
+				],
+				files: [{ id: 10, signers: [{ signRequestId: 501 }, { signRequestId: 502 }] }],
+			}
+
+			expect(getCurrentUserSignRequestIds(document)).toEqual([700, 501])
+		})
 	})
 
 	describe('hasVisibleElementsForCurrentUser', () => {

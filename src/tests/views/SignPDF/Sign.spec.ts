@@ -499,6 +499,32 @@ describe('Sign.vue - signWithTokenCode', () => {
 	})
 
 	describe('Sign.vue - lifecycle regressions', () => {
+		it('lets an envelope signer fill fields assigned to their child request', async () => {
+			setActivePinia(createPinia())
+			const { useSignStore } = await import('../../../store/sign.js')
+			const { useSigningFieldsStore } = await import('../../../store/signingFields')
+			const signStore = useSignStore()
+			const field = {
+				elementId: 201, fileId: 10, signRequestId: 501, type: 'text',
+				metadata: { label: 'Your Name', required: true },
+				coordinates: { page: 1, left: 10, top: 20, width: 100, height: 30 },
+			}
+			signStore.document = createSignDocument({
+				status: FILE_STATUS.ABLE_TO_SIGN,
+				nodeType: 'envelope',
+				signers: [{ me: true, status: SIGN_REQUEST_STATUS.ABLE_TO_SIGN, signRequestId: 700, visibleElements: [field] }],
+				files: [{ id: 10, signers: [{ signRequestId: 501 }], visibleElements: [field] }],
+			})
+
+			const wrapper = await mountRealSignComponent()
+			await flushPromises()
+			const input = wrapper.get('.signing-fields-summary input')
+			await input.setValue('Ekomobong Akwaowo')
+
+			expect(wrapper.text()).toContain('Your Name')
+			expect(useSigningFieldsStore().values[201]).toBe('Ekomobong Akwaowo')
+		})
+
 		it('consumes pendingAction on mount and opens the matching signing modal', async () => {
 			setActivePinia(createPinia())
 

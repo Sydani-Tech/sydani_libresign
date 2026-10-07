@@ -15,6 +15,7 @@
 			:files="pdfBlobs"
 			:file-names="fileNames.length > 0 ? fileNames : [pdfFileName]"
 			:read-only="true"
+			:editable-sign-request-ids="currentUserSignRequestIds"
 			:emit-object-click="true"
 			@pdf-editor:object-click="ensureSignSidebarOpen"
 			@pdf-editor:end-init="updateSigners" />
@@ -53,6 +54,7 @@ import {
 	aggregateVisibleElementsByFiles,
 	findFileById,
 	getFileSigners,
+	getCurrentUserSignRequestIds,
 	getFileUrl,
 	getVisibleElementsFromDocument,
 	idsMatch,
@@ -224,6 +226,10 @@ const elementClickHandler = ref<EventListener | null>(null)
 const isMobile = typeof window !== 'undefined' && window.innerWidth <= 512
 const EMPTY_ENVELOPE_FILES: RawSignDocumentFile[] = []
 const EMPTY_PDFS: string[] = []
+
+const currentUserSignRequestIds = computed(() => getCurrentUserSignRequestIds(
+	normalizeDocumentForVisibleElements(signStore.document),
+))
 
 const pdfFileName = computed(() => {
 	const doc = signStore.document

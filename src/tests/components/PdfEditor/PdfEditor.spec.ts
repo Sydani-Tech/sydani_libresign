@@ -24,7 +24,7 @@ type VisibleElementRecord = {
 	elementId?: number
 	signRequestId?: number
 	fileId?: number
-	type: 'signature'
+	type: 'signature' | 'text' | 'date' | 'checkbox'
 	coordinates: Record<string, number>
 	[key: string]: unknown
 }
@@ -67,6 +67,7 @@ type PdfEditorVm = {
 	}
 	$nextTick: () => Promise<void>
 	getSignerLabel: (signer: SignerRecord | null | undefined) => string
+	isEditableSigningField: (object: PdfObjectRecord) => boolean
 	hasMultipleSigners: boolean
 	startAddingSigner: (signer: SignerRecord | null | undefined, size: { width?: number, height?: number }) => boolean
 	addSigner: (signer: SignerRecord, visibleElement: VisibleElementRecord, options?: { documentIndex?: number }) => Promise<void>
@@ -158,6 +159,17 @@ describe('PdfEditor Component - Business Rules', () => {
 			expect(ensurePdfWorkerMock).toHaveBeenCalledTimes(1)
 			expect(pdfElementsWorkerReadyStates).toEqual([true])
 		})
+	})
+
+	it('edits only the current envelope signer’s child fields', async () => {
+		await wrapper.setProps({ readOnly: true, editableSignRequestIds: [700, 501] })
+		const ownField = { id: 'own', signer: { signRequestId: 501, signed: null }, visibleElement: {
+			elementId: 201, fileId: 10, signRequestId: 501, type: 'text' as const, coordinates: { page: 1 },
+		} }
+		const otherField = { ...ownField, id: 'other', visibleElement: { ...ownField.visibleElement, signRequestId: 502 } }
+
+		expect(wrapper.vm.isEditableSigningField(ownField)).toBe(true)
+		expect(wrapper.vm.isEditableSigningField(otherField)).toBe(false)
 	})
 
 	describe('RULE: getSignerLabel with fallback chain', () => {

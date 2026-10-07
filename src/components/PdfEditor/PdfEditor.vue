@@ -73,7 +73,7 @@
 			<template v-for="fieldType in ['text', 'date', 'checkbox']" #[`element-${fieldType}`]="{ object }">
 				<SigningFieldBox :key="fieldType" :type="fieldType" :field="object.visibleElement" :metadata="object.metadata"
 					:signer-label="getSignerLabel(object.signer)"
-					:editable="readOnly && object.signer?.me === true && !object.signer?.signed" />
+					:editable="readOnly && isEditableSigningField(object)" />
 			</template>
 		</PDFElements>
 	</div>
@@ -98,6 +98,7 @@ import SignerMenu from './SignerMenu.vue'
 import SignatureBox from './SignatureBox.vue'
 import SigningFieldBox from './SigningFieldBox.vue'
 import { isSigningField } from '../../store/signingFields'
+import { idsMatch } from '../../services/visibleElementsService'
 import {
 	buildPdfEditorSignerPayload,
 	calculatePdfPlacement,
@@ -161,6 +162,7 @@ const props = withDefaults(defineProps<{
 	files?: PdfInput[]
 	fileNames?: string[]
 	readOnly?: boolean
+	editableSignRequestIds?: number[]
 	signers?: Array<SignerSummaryRecord | SignerDetailRecord>
 }>(), {
 	files: () => [],
@@ -200,6 +202,14 @@ const toolbarStyleVars = computed(() => ({
 }))
 
 const hasMultipleSigners = computed(() => (props.signers || []).length > 1)
+
+function isEditableSigningField(object: PdfEditorObject): boolean {
+	if (object.signer?.signed) return false
+	if (props.editableSignRequestIds !== undefined) {
+		return props.editableSignRequestIds.some(id => idsMatch(id, object.visibleElement?.signRequestId))
+	}
+	return Boolean(object.signer && 'me' in object.signer && object.signer.me === true)
+}
 
 function getPageAriaLabel({ docIndex, docName, totalDocs, pageNumber, totalPages, isAddingMode }: {
 	docIndex: number
