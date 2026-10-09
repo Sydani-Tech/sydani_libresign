@@ -21,7 +21,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 				@click.stop @pointerdown.stop @mousedown.stop @touchstart.stop @keydown.stop>
 		</template>
 		<template v-else>
-			<span class="signing-field__label">{{ type === 'checkbox' ? '☑' : type === 'date' ? '▦' : 'T' }} {{ label }}</span>
+			<span class="signing-field__label">{{ type === 'checkbox' ? '☑ ' : type === 'date' ? '▦ ' : '' }}{{ label }}</span>
 			<small>{{ signerLabel }}{{ required ? ' *' : '' }}</small>
 		</template>
 	</div>

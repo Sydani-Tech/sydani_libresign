@@ -42,4 +42,9 @@ describe('SigningFieldBox.vue', () => {
 		expect(wrapper.text()).toContain('Approval')
 		expect(wrapper.text()).toContain('Ada')
 	})
+
+	it('does not prefix a text-field label with a redundant T', () => {
+		const wrapper = mount(SigningFieldBox, { props: { type: 'text', field: field('text'), signerLabel: 'Ada', editable: false } })
+		expect(wrapper.get('.signing-field__label').text()).toBe('Approval')
+	})
 })
