@@ -128,6 +128,13 @@ public final class SigningFields {
                     PdfNumber flags = item.getMerged(0).getAsNumber(PdfName.FF);
                     if (flags != null && (flags.intValue() & PdfFormField.FF_READ_ONLY) != 0)
                         throw new IllegalArgumentException("A completed field cannot be changed");
+                    // Fields reserved for later signers inherit the first revision's
+                    // subset font. That imported DocumentFont does not reliably encode
+                    // text when regenerating an existing field's appearance.
+                    // Bind the current Unicode font before generating this signer's text.
+                    if (!f[1].equals("checkbox")
+                            && !fields.setFieldProperty(name, "textfont", font, null))
+                        throw new IllegalArgumentException("Could not set assigned field font");
                     if (!fields.setField(name, f[1].equals("checkbox") ? (value.equals("true") ? "Yes" : "Off") : value))
                         throw new IllegalArgumentException("Could not fill assigned field");
                     fields.setFieldProperty(name, "setfflags", PdfFormField.FF_READ_ONLY, null);
