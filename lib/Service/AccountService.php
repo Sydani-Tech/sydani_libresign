@@ -361,6 +361,9 @@ class AccountService {
 		if (!$user) {
 			return false;
 		}
+		if ($this->appConfig->getValueBool(Application::APP_ID, 'allow_all_signed_in_request_sign', true)) {
+			return true;
+		}
 		$authorized = $this->appConfig->getValueArray(Application::APP_ID, 'groups_request_sign', ['admin']);
 		if (empty($authorized)) {
 			return false;

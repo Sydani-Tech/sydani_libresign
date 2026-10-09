@@ -983,6 +983,16 @@ class AdminController extends AEnvironmentAwareController {
 	}
 
 	/**
+	 * Allow every authenticated Nextcloud user to create signing requests, regardless of group.
+	 * Anonymous users remain excluded by the request-sign middleware.
+	 */
+	#[ApiRoute(verb: 'POST', url: '/api/{apiVersion}/admin/all-signed-in-request-sign/config', requirements: ['apiVersion' => '(v1)'])]
+	public function setAllSignedInRequestSignConfig(bool $enabled): DataResponse {
+		$this->appConfig->setValueBool(Application::APP_ID, 'allow_all_signed_in_request_sign', $enabled);
+		return new DataResponse(['message' => $this->l10n->t('Settings saved')]);
+	}
+
+	/**
 	 * Set signature flow configuration
 	 *
 	 * @param bool $enabled Whether to force a signature flow for all documents

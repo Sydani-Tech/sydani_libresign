@@ -440,6 +440,18 @@ final class ValidateHelperTest extends \OCA\Libresign\Tests\Unit\TestCase {
 		$this->getValidateHelper()->canRequestSign($user);
 	}
 
+	public function testCanRequestSignForUserWithoutGroupsWhenAllSignedInEnabled(): void {
+		$this->appConfig
+			->method('getValueBool')
+			->with('libresign', 'allow_all_signed_in_request_sign', true)
+			->willReturn(true);
+		$this->groupManager
+			->expects($this->never())
+			->method('getUserGroupIds');
+		$user = $this->createMock(IUser::class);
+		$this->getValidateHelper()->canRequestSign($user);
+	}
+
 	public function testValidateFileWithEmptyFile():void {
 		$this->expectExceptionMessage('Empty file');
 

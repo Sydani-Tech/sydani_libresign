@@ -6,9 +6,22 @@
 <template>
 	<NcSettingsSection
 		:name="t('libresign', 'Allow request to sign')"
-		:description="t('libresign', 'Select authorized groups that can request to sign documents. Admin group is the default group and don\'t need to be defined.')"
+		:description="t('libresign', 'Choose who can create documents and request signatures.')"
 	>
-		<NcSelect :key="idKey"
+		<NcCheckboxRadioSwitch v-model="allSignedInUsers"
+			type="switch"
+			:disabled="savingAccess"
+			@update:model-value="saveAllSignedInUsers">
+			{{ t('libresign', 'All signed-in users') }}
+		</NcCheckboxRadioSwitch>
+		<p v-if="allSignedInUsers">
+			{{ t('libresign', 'Every signed-in Nextcloud user can upload documents and request signatures. Anonymous visitors cannot.') }}
+		</p>
+		<p v-else>
+			{{ t('libresign', 'Select authorized groups. The admin group is allowed by default.') }}
+		</p>
+		<NcSelect v-if="!allSignedInUsers"
+			:key="idKey"
 			v-model="groupsSelected"
 			label="displayname"
 			:no-wrap="false"
@@ -30,10 +43,13 @@ import axios from '@nextcloud/axios'
 import { confirmPassword } from '@nextcloud/password-confirmation'
 import { generateOcsUrl } from '@nextcloud/router'
 import { t } from '@nextcloud/l10n'
+import { loadState } from '@nextcloud/initial-state'
 import { onMounted, ref } from 'vue'
 
 import NcSelect from '@nextcloud/vue/components/NcSelect'
+import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcSettingsSection from '@nextcloud/vue/components/NcSettingsSection'
+import type { AdminInitialState } from '../../types'
 
 import logger from '../../logger.js'
 
@@ -53,6 +69,23 @@ const groups = ref<GroupRow[]>([])
 const loadingGroups = ref(false)
 const isSearching = ref(false)
 const idKey = ref(0)
+const allSignedInUsers = ref(loadState<AdminInitialState['allow_all_signed_in_request_sign']>('libresign', 'allow_all_signed_in_request_sign', true))
+const savingAccess = ref(false)
+
+async function saveAllSignedInUsers() {
+	savingAccess.value = true
+	try {
+		await confirmPassword()
+		await axios.post(generateOcsUrl('apps/libresign/api/v1/admin/all-signed-in-request-sign/config'), {
+			enabled: allSignedInUsers.value,
+		})
+	} catch (error) {
+		allSignedInUsers.value = !allSignedInUsers.value
+		logger.error('Could not update request-to-sign access', { error })
+	} finally {
+		savingAccess.value = false
+	}
+}
 
 async function getData() {
 	loadingGroups.value = true
@@ -120,6 +153,9 @@ defineExpose({
 	loadingGroups,
 	isSearching,
 	idKey,
+	allSignedInUsers,
+	savingAccess,
+	saveAllSignedInUsers,
 	getData,
 	saveGroups,
 	searchGroup,

@@ -352,6 +352,19 @@ final class AccountServiceTest extends \OCA\Libresign\Tests\Unit\TestCase {
 		$this->assertFalse($actual);
 	}
 
+	public function testCanRequestSignForAnySignedInUserWhenEnabled(): void {
+		$this->appConfig
+			->method('getValueBool')
+			->with(Application::APP_ID, 'allow_all_signed_in_request_sign', true)
+			->willReturn(true);
+		$this->groupManager
+			->expects($this->never())
+			->method('getUserGroupIds');
+		$user = $this->createMock(IUser::class);
+		$this->assertTrue($this->getService()->canRequestSign($user));
+		$this->assertFalse($this->getService()->canRequestSign());
+	}
+
 	public function testCanRequestSignWithoutGroups():void {
 		$this->appConfig
 			->method('getValueString')

@@ -110,6 +110,7 @@ export type AdminDocMdpConfigState = {
 	availableLevels: AdminDocMdpLevelOption[]
 }
 export type AdminInitialState = {
+	allow_all_signed_in_request_sign: boolean
 	docmdp_config: AdminDocMdpConfigState
 	signature_engine: 'JSignPdf'
 	signing_mode: SigningModeState

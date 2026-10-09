@@ -519,6 +519,9 @@ class ValidateHelper {
 	}
 
 	public function canRequestSign(IUser $user): void {
+		if ($this->appConfig->getValueBool(Application::APP_ID, 'allow_all_signed_in_request_sign', true)) {
+			return;
+		}
 		$authorized = $this->appConfig->getValueArray(Application::APP_ID, 'groups_request_sign', ['admin']);
 		if (empty($authorized)) {
 			$authorized = ['admin'];

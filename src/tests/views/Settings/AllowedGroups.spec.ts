@@ -10,6 +10,7 @@ const axiosGetMock = vi.fn()
 const axiosPostMock = vi.fn(() => Promise.resolve({ data: { ocs: { data: {} } } }))
 const generateOcsUrlMock = vi.fn((path: string) => path)
 const confirmPasswordMock = vi.fn(() => Promise.resolve())
+const loadStateMock = vi.fn(() => false)
 
 vi.mock('@nextcloud/axios', () => ({
 	default: {
@@ -26,6 +27,10 @@ vi.mock('@nextcloud/password-confirmation', () => ({
 	confirmPassword: () => confirmPasswordMock(),
 }))
 
+vi.mock('@nextcloud/initial-state', () => ({
+	loadState: loadStateMock,
+}))
+
 vi.mock('@nextcloud/l10n', () => globalThis.mockNextcloudL10n())
 
 let AllowedGroups: unknown
@@ -40,6 +45,24 @@ describe('AllowedGroups', () => {
 		axiosPostMock.mockClear()
 		generateOcsUrlMock.mockClear()
 		confirmPasswordMock.mockClear()
+		loadStateMock.mockReturnValue(false)
+	})
+
+	it('allows every signed-in user when the all-users switch is enabled', async () => {
+		loadStateMock.mockReturnValue(true)
+		axiosGetMock.mockResolvedValue({ data: { ocs: { data: { groups: [], data: '[]' } } } })
+		const wrapper = mount(AllowedGroups as never, {
+			global: {
+				stubs: {
+					NcSettingsSection: { template: '<div><slot /></div>' },
+					NcCheckboxRadioSwitch: { template: '<div><slot /></div>' },
+				},
+			},
+		})
+		await flushPromises()
+		expect(wrapper.findComponent({ name: 'NcSelect' }).exists()).toBe(false)
+		await (wrapper.vm as unknown as { saveAllSignedInUsers: () => Promise<void> }).saveAllSignedInUsers()
+		expect(axiosPostMock).toHaveBeenCalledWith('apps/libresign/api/v1/admin/all-signed-in-request-sign/config', { enabled: true })
 	})
 
 	it('persists when adding and removing groups', async () => {
@@ -70,6 +93,7 @@ describe('AllowedGroups', () => {
 			global: {
 				stubs: {
 					NcSettingsSection: { template: '<div><slot /></div>' },
+					NcCheckboxRadioSwitch: { template: '<div><slot /></div>' },
 					NcSelect: {
 						name: 'NcSelect',
 						props: ['modelValue'],
@@ -134,6 +158,7 @@ describe('AllowedGroups', () => {
 			global: {
 				stubs: {
 					NcSettingsSection: { template: '<div><slot /></div>' },
+					NcCheckboxRadioSwitch: { template: '<div><slot /></div>' },
 					NcSelect: {
 						name: 'NcSelect',
 						props: ['modelValue'],
@@ -180,6 +205,7 @@ describe('AllowedGroups', () => {
 			global: {
 				stubs: {
 					NcSettingsSection: { template: '<div><slot /></div>' },
+					NcCheckboxRadioSwitch: { template: '<div><slot /></div>' },
 					NcSelect: {
 						name: 'NcSelect',
 						props: ['modelValue'],
@@ -221,6 +247,7 @@ describe('AllowedGroups', () => {
 			global: {
 				stubs: {
 					NcSettingsSection: { template: '<div><slot /></div>' },
+					NcCheckboxRadioSwitch: { template: '<div><slot /></div>' },
 					NcSelect: {
 						name: 'NcSelect',
 						// Expose disabled/loading so the test can assert the input stays enabled.
