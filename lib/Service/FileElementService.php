@@ -57,6 +57,9 @@ class FileElementService {
 		if (!$file) {
 			throw new \InvalidArgumentException('File not found for visible element');
 		}
+		if ($file->getSignedHash()) {
+			throw new \InvalidArgumentException('Field definitions cannot change after signing has begun.');
+		}
 		if ($this->signRequestMapper->getById((int)$properties['signRequestId'])->getFileId() !== $file->getId()) {
 			throw new \InvalidArgumentException('Field must belong to the assigned signer and file.');
 		}
@@ -154,6 +157,9 @@ class FileElementService {
 
 	public function deleteVisibleElement(int $elementId): void {
 		$existing = $this->fileElementMapper->getById($elementId);
+		if ($this->fileMapper->getById($existing->getFileId())->getSignedHash()) {
+			throw new \InvalidArgumentException('Fields cannot be deleted after signing has begun.');
+		}
 		if ($this->fileMapper->getById($existing->getFileId())->getSignedNodeId()
 			&& SigningFieldService::isField($existing->getType())) {
 			throw new \InvalidArgumentException('Form fields cannot be deleted after signing has begun.');
@@ -164,6 +170,9 @@ class FileElementService {
 	}
 
 	public function deleteVisibleElements(int $fileId): void {
+		if ($this->fileMapper->getById($fileId)->getSignedHash()) {
+			throw new \InvalidArgumentException('Signed document fields cannot be deleted.');
+		}
 		$visibleElements = $this->fileElementMapper->getByFileId($fileId);
 		foreach ($visibleElements as $visibleElement) {
 			$this->fileElementMapper->delete($visibleElement);

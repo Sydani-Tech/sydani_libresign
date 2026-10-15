@@ -32,6 +32,7 @@ class FolderService {
 		private IAppConfig $appConfig,
 		private IL10N $l10n,
 		private ?string $userId,
+		private DocumentArchiveService $documentArchive,
 	) {
 		$this->userId = $userId;
 		$this->appData = $appDataFactory->get('libresign');
@@ -83,6 +84,10 @@ class FolderService {
 	 * @throws NotFoundException
 	 */
 	public function getFileByNodeId(int $nodeId): File {
+		$archived = $this->documentArchive->findByNodeId($nodeId);
+		if ($archived) {
+			return $archived;
+		}
 		// For guests, files are stored in appdata, not in user folder
 		// Skip getUserFolder search for guests to avoid false positives
 		if ($this->getUserId() && !$this->groupManager->isInGroup($this->getUserId(), 'guest_app')) {

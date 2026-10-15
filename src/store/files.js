@@ -706,7 +706,7 @@ const _filesStore = defineStore('files', () => {
 		if (typeof selectedFile?.canSign === 'boolean') {
 			return selectedFile.canSign
 		}
-		if (isOriginalFileDeleted(selectedFile)) {
+		if (isOriginalFileDeleted(selectedFile) && ![2, 3].includes(Number(selectedFile?.status))) {
 			return false
 		}
 		const isSigned = (signer) => Array.isArray(signer.signed)
@@ -751,6 +751,11 @@ const _filesStore = defineStore('files', () => {
 
 	function canDelete(file) {
 		const selectedFile = getFile(file)
+		if ([2, 3].includes(Number(selectedFile?.status))
+			|| selectedFile?.metadata?.organisational_archive
+			|| selectedFile?.signers?.some(signer => Array.isArray(signer.signed) ? signer.signed.length > 0 : !!signer.signed)) {
+			return false
+		}
 		return canRequestSign.value
 			&& (
 				!Object.hasOwn(selectedFile, 'requested_by')

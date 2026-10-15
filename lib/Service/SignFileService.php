@@ -121,6 +121,7 @@ class SignFileService {
 		private PfxProvider $pfxProvider,
 		private SubjectAlternativeNameService $subjectAlternativeNameService,
 		private SignRequestService $signRequestService,
+		private DocumentArchiveService $documentArchive,
 	) {
 	}
 
@@ -895,6 +896,10 @@ class SignFileService {
 	protected function updateLibreSignFile(FileEntity $libreSignFile, int $nodeId, string $hash): void {
 		$libreSignFile->setSignedNodeId($nodeId);
 		$libreSignFile->setSignedHash($hash);
+		$archivedNode = $this->documentArchive->findByNodeId($nodeId);
+		if ($archivedNode) {
+			$this->documentArchive->markArchived($libreSignFile, $archivedNode);
+		}
 		$this->setNewStatusIfNecessary($libreSignFile);
 		$this->fileStatusService->update($libreSignFile);
 
@@ -1167,6 +1172,12 @@ class SignFileService {
 	protected function getFileToSign(): File {
 		if ($this->fileToSign instanceof File) {
 			return $this->fileToSign;
+		}
+		// Continue from the signed master before attempting to locate the source.
+		// The source may have been deleted or replaced after the first signature.
+		if ($this->libreSignFile->getSignedNodeId()) {
+			$this->documentArchive->archiveExisting($this->libreSignFile);
+			return $this->fileToSign = $this->documentArchive->resolve($this->libreSignFile);
 		}
 
 		$userId = $this->libreSignFile->getUserId()
@@ -1442,12 +1453,7 @@ class SignFileService {
 			return null;
 		}
 
-		$fileToSign = $this->getNodeByIdUsingUid($this->libreSignFile->getUserId(), $nodeId);
-
-		if ($fileToSign->getOwner()->getUID() !== $this->libreSignFile->getUserId()) {
-			$fileToSign = $this->getNodeByIdUsingUid($fileToSign->getOwner()->getUID(), $nodeId);
-		}
-		return $fileToSign;
+		return $this->documentArchive->resolve($this->libreSignFile);
 	}
 
 	protected function getNodeByIdUsingUid(string $uid, int $nodeId): File {
@@ -1522,29 +1528,9 @@ class SignFileService {
 	}
 
 	private function createSignedFile(File $originalFile, string $content): File {
-		$filename = preg_replace(
-			'/' . $originalFile->getExtension() . '$/',
-			$this->l10n->t('signed') . '.' . $originalFile->getExtension(),
-			basename($originalFile->getPath())
+		return $this->createdSignedFile = $this->documentArchive->createWorkingCopy(
+			$this->libreSignFile, $originalFile->getExtension(), $content,
 		);
-		$owner = $originalFile->getOwner()->getUID();
-
-		$fileId = $this->libreSignFile->getId();
-		$extension = $originalFile->getExtension();
-		$uniqueFilename = substr((string)$filename, 0, -strlen($extension) - 1) . '_' . $fileId . '.' . $extension;
-
-		try {
-			/** @var \OCP\Files\Folder */
-			$parentFolder = $this->root->getUserFolder($owner)->getFirstNodeById($originalFile->getParentId());
-
-			$this->createdSignedFile = $parentFolder->newFile($uniqueFilename, $content);
-
-			return $this->createdSignedFile;
-		} catch (NotPermittedException) {
-			throw new LibresignException($this->l10n->t('You do not have permission for this action.'));
-		} catch (\Exception $e) {
-			throw $e;
-		}
 	}
 
 	/**
@@ -1581,14 +1567,14 @@ class SignFileService {
 			$children = $this->fileMapper->getChildrenFiles($fileData->getId());
 			$files = [];
 			foreach ($children as $child) {
-				$nodeId = $child->getNodeId();
+				$nodeId = $child->getSignedNodeId() ?: $child->getNodeId();
 				if ($nodeId === null) {
 					throw new LibresignException(json_encode([
 						'action' => JSActions::ACTION_DO_NOTHING,
 						'errors' => [['message' => $this->l10n->t('File not found')]],
 					]), AppFrameworkHttp::STATUS_NOT_FOUND);
 				}
-				$file = $this->root->getUserFolder($child->getUserId())->getFirstNodeById($nodeId);
+				$file = $this->documentArchive->resolve($child);
 				if ($file instanceof File) {
 					$files[] = $file;
 				}
@@ -1596,16 +1582,14 @@ class SignFileService {
 			return $files;
 		}
 
-		$nodeId = $fileData->getNodeId();
+		$nodeId = $fileData->getSignedNodeId() ?: $fileData->getNodeId();
 		if ($nodeId === null) {
 			throw new LibresignException(json_encode([
 				'action' => JSActions::ACTION_DO_NOTHING,
 				'errors' => [['message' => $this->l10n->t('File not found')]],
 			]), AppFrameworkHttp::STATUS_NOT_FOUND);
 		}
-		$storageUserId = $this->fileMapper->getStorageUserIdByUuid($fileData->getUuid());
-		$this->folderService->setUserId($storageUserId);
-		$fileToSign = $this->folderService->getFileByNodeId($nodeId);
+		$fileToSign = $this->documentArchive->resolve($fileData);
 		if (!$fileToSign instanceof File) {
 			throw new LibresignException(json_encode([
 				'action' => JSActions::ACTION_DO_NOTHING,

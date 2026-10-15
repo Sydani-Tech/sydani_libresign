@@ -62,6 +62,7 @@ class RequestSignatureService {
 		protected IAppConfig $appConfig,
 		protected IEventDispatcher $eventDispatcher,
 		protected FileStatusService $fileStatusService,
+		private DocumentArchiveService $documentArchive,
 		protected DocMdpConfigService $docMdpConfigService,
 		protected EnvelopeService $envelopeService,
 		protected EnvelopeFileRelocator $envelopeFileRelocator,
@@ -376,6 +377,9 @@ class RequestSignatureService {
 		$this->setSignatureFlow($file, $data);
 		$this->setDocMdpLevelFromGlobalConfig($file);
 
+		if ($file->getStatus() === FileStatus::ABLE_TO_SIGN->value) {
+			$file->setRequestedAt(new \DateTime('now', new \DateTimeZone('UTC')));
+		}
 		$this->fileMapper->insert($file);
 		return $file;
 	}
@@ -582,6 +586,7 @@ class RequestSignatureService {
 
 	public function unassociateToUser(int $fileId, int $signRequestId): void {
 		$file = $this->fileMapper->getById($fileId);
+		$this->documentArchive->assertCanDelete($file);
 		$signRequest = $this->signRequestMapper->getByFileIdAndSignRequestId($fileId, $signRequestId);
 		$deletedOrder = $signRequest->getSigningOrder();
 		$groupedIdentifyMethods = $this->identifyMethod->getIdentifyMethodsFromSignRequestId($signRequestId);
@@ -678,11 +683,12 @@ class RequestSignatureService {
 		} else {
 			throw new \Exception($this->l10n->t('Please provide either UUID or File object'));
 		}
+		$this->documentArchive->assertCanDelete($fileData);
 		foreach ($signatures as $signRequest) {
 			$this->identifyMethod->deleteBySignRequestId($signRequest->getId());
 			$this->signRequestMapper->delete($signRequest);
 		}
-		$this->fileMapper->delete($fileData);
 		$this->fileElementService->deleteVisibleElements($fileData->getId());
+		$this->fileMapper->delete($fileData);
 	}
 }

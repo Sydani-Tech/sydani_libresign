@@ -96,6 +96,7 @@ class FileService {
 		private SettingsLoader $settingsLoader,
 		private MessagesLoader $messagesLoader,
 		private FileStatusService $fileStatusService,
+		private DocumentArchiveService $documentArchive,
 	) {
 		$this->initializeFileData();
 		$this->options = new FileResponseOptions();
@@ -358,15 +359,7 @@ class FileService {
 	}
 
 	private function getFile(): \OCP\Files\File {
-		$nodeId = $this->file->getSignedNodeId();
-		if (!$nodeId) {
-			$nodeId = $this->file->getNodeId();
-		}
-		$fileToValidate = $this->root->getUserFolder($this->file->getUserId())->getFirstNodeById($nodeId);
-		if (!$fileToValidate instanceof \OCP\Files\File) {
-			throw new LibresignException($this->l10n->t('File not found'), 404);
-		}
-		return $fileToValidate;
+		return $this->documentArchive->resolve($this->file);
 	}
 
 	public function getStatus(): int {
@@ -444,7 +437,7 @@ class FileService {
 		$this->fileData->status = $this->file->getStatus();
 		$this->fileData->created_at = $this->file->getCreatedAt()->format(DateTimeInterface::ATOM);
 		$this->fileData->statusText = $this->fileMapper->getTextOfStatus($this->file->getStatus());
-		$this->fileData->nodeId = $this->file->getNodeId();
+		$this->fileData->nodeId = $this->file->getDisplayNodeId();
 		$this->fileData->signatureFlow = $this->file->getSignatureFlow();
 		$this->fileData->docmdpLevel = $this->file->getDocmdpLevel();
 		$this->fileData->nodeType = $this->file->getNodeType();
@@ -801,6 +794,8 @@ class FileService {
 
 	public function delete(int $fileId, bool $deleteFile = true): void {
 		$file = $this->fileMapper->getById($fileId);
+		// Preflight the whole envelope before removing any child or signing data.
+		$this->documentArchive->assertCanDelete($file);
 
 		$this->decrementEnvelopeFilesCountIfNeeded($file);
 

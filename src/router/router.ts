@@ -102,6 +102,11 @@ const routes: RouteRecordRaw[] = [
 
 	// internal pages
 	{
+		path: '/f/archive',
+		name: 'organisationalArchive',
+		component: () => import('../views/OrganisationalArchive.vue'),
+	},
+	{
 		path: '/f/',
 		redirect: () => {
 			const canRequestSign = loadState('libresign', 'can_request_sign', false)

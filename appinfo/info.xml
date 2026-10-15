@@ -27,7 +27,7 @@ If your organization uses LibreSign, support its development:
 For enterprise support, contact LibreCode:
 https://libresign.coop
 	]]></description>
-	<version>12.5.0.4</version>
+	<version>12.5.0.5</version>
 	<licence>agpl</licence>
 	<author mail="contact@librecode.coop" homepage="https://librecode.coop">LibreCode</author>
 	<types>
@@ -69,6 +69,7 @@ https://libresign.coop
 			<step>OCA\Libresign\Migration\RefreshAutoloaderBeforeMigrations</step>
 		</pre-migration>
 		<post-migration>
+			<step>OCA\Libresign\Migration\ArchiveSignedDocuments</step>
 			<step>OCA\Libresign\Migration\DeleteOldBinaries</step>
 			<step>OCA\Libresign\Migration\ResynchronizeDatabaseSequences</step>
 			<step>OCA\Libresign\Migration\StopRunningWorkers</step>

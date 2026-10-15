@@ -158,6 +158,10 @@ onMounted(() => {
 		displayName: () => t('libresign', 'Delete'),
 		iconSvgInline: () => svgDelete,
 		execBatch: (files) => {
+			if (files.some(id => !filesStore.canDelete(filesStore.files[id]))) {
+				showError(t('libresign', 'Signed documents and their signing history cannot be deleted.'))
+				return files.map(() => null)
+			}
 			confirmDelete.value = true
 			toDelete.value = files
 			return files.map(() => null)

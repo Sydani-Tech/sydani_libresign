@@ -25,6 +25,7 @@ use OCP\IDBConnection;
 class BeforeNodeDeletedListener implements IEventListener {
 	public function __construct(
 		private IDBConnection $db,
+		private \OCA\Libresign\Service\DocumentArchiveService $documentArchive,
 	) {
 	}
 
@@ -39,12 +40,20 @@ class BeforeNodeDeletedListener implements IEventListener {
 				return;
 			}
 
-			$this->deleteAllByNodeId($node->getId());
+			if ($this->documentArchive->isProtectedSignedNode($node->getId())) {
+				throw new \OCP\Files\NotPermittedException('Signed documents cannot be deleted.');
+			}
+			if (!$this->documentArchive->detachDeletedSource($node->getId())) {
+				$this->deleteAllByNodeId($node->getId());
+			}
 			return;
 		}
 
 		if ($event instanceof CacheEntryRemovedEvent) {
-			$this->deleteAllByNodeId($event->getFileId());
+			if (!$this->documentArchive->isProtectedSignedNode($event->getFileId())
+				&& !$this->documentArchive->detachDeletedSource($event->getFileId())) {
+				$this->deleteAllByNodeId($event->getFileId());
+			}
 		}
 	}
 

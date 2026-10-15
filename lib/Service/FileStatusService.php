@@ -20,6 +20,7 @@ class FileStatusService {
 	public function __construct(
 		private FileMapper $fileMapper,
 		private StatusCacheService $statusCacheService,
+		private \OCA\Libresign\Db\SignRequestMapper $signRequestMapper,
 	) {
 	}
 
@@ -127,6 +128,21 @@ class FileStatusService {
 	}
 
 	private function touchStatusChangedAt(FileEntity $file): void {
+		if ($file->getSignedHash() && !in_array($file->getStatus(), [FileStatus::PARTIAL_SIGNED->value, FileStatus::SIGNED->value], true)) {
+			throw new \OCP\Files\NotPermittedException('Signed document records cannot be reset or deleted.');
+		}
+		if ($file->getStatus() === FileStatus::ABLE_TO_SIGN->value && !$file->getRequestedAt()) {
+			$file->setRequestedAt(new DateTime('now', new \DateTimeZone('UTC')));
+		}
+		if ($file->getStatus() === FileStatus::SIGNED->value && !$file->getCompletedAt()) {
+			$latest = null;
+			foreach ($this->signRequestMapper->getByFileId($file->getId()) as $request) {
+				if ($request->getSigned() && (!$latest || $request->getSigned() > $latest)) {
+					$latest = $request->getSigned();
+				}
+			}
+			$file->setCompletedAt($latest ? clone $latest : new DateTime('now', new \DateTimeZone('UTC')));
+		}
 		$metadata = $file->getMetadata() ?? [];
 		$metadata['status_changed_at'] = (new DateTime())->format(DateTimeInterface::ATOM);
 		$file->setMetadata($metadata);

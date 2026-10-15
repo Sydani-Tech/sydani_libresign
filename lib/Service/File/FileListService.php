@@ -50,6 +50,7 @@ class FileListService {
 		private IL10N $l10n,
 		private IUserManager $userManager,
 		private IRootFolder $root,
+		private \OCA\Libresign\Service\DocumentArchiveService $documentArchive,
 	) {
 	}
 
@@ -233,7 +234,7 @@ class FileListService {
 	): array {
 		$file = [
 			'id' => $fileEntity->getId(),
-			'nodeId' => $fileEntity->getNodeId(),
+			'nodeId' => $fileEntity->getDisplayNodeId(),
 			'uuid' => $fileEntity->getUuid(),
 			'name' => $fileEntity->getName(),
 			'status' => $fileEntity->getStatus(),
@@ -344,7 +345,7 @@ class FileListService {
 		/** @var LibresignFileSummary */
 		return [
 			'id' => $fileEntity->getId(),
-			'nodeId' => $fileEntity->getNodeId(),
+			'nodeId' => $fileEntity->getDisplayNodeId(),
 			'uuid' => $fileEntity->getUuid(),
 			'name' => $fileEntity->getName(),
 			'status' => $fileEntity->getStatus(),
@@ -632,7 +633,7 @@ class FileListService {
 		$response = [
 			'message' => $this->l10n->t('Success'),
 			'id' => $mainEntity->getId(),
-			'nodeId' => $mainEntity->getNodeId(),
+			'nodeId' => $mainEntity->getDisplayNodeId(),
 			'uuid' => $mainEntity->getUuid(),
 			'name' => $mainEntity->getName(),
 			'status' => $mainEntity->getStatus(),
@@ -890,7 +891,7 @@ class FileListService {
 			return [
 				'fileId' => $file->getId(),
 				'id' => $file->getId(),
-				'nodeId' => $file->getNodeId(),
+				'nodeId' => $file->getDisplayNodeId(),
 				'uuid' => $file->getUuid(),
 				'name' => $file->getName(),
 				'status' => $file->getStatus(),
@@ -912,7 +913,7 @@ class FileListService {
 		}
 
 		try {
-			$fileNode = $this->root->getUserFolder($file->getUserId())->getFirstNodeById($nodeId);
+			$fileNode = $this->documentArchive->resolve($file);
 			if ($fileNode instanceof NodeFile && method_exists($fileNode, 'getSize')) {
 				return max(0, (int)$fileNode->getSize());
 			}

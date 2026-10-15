@@ -650,6 +650,26 @@ describe('files store - critical business rules', () => {
 	})
 
 	describe('RULE: signer operations maintain consistency', () => {
+		it.each([2, 3])('never permits deletion of a protected signing record (status %s)', (status) => {
+			const store = useFilesStore()
+			store.canRequestSign = true
+			store.files[1] = { id: 1, status, requested_by: { userId: 'testuser' } }
+			expect(store.canDelete(store.files[1])).toBe(false)
+		})
+
+		it('retains signing access for the remaining participant after source deletion', () => {
+			const store = useFilesStore()
+			store.files[1] = {
+				id: 1, status: 2, signatureFlow: 'ordered_numeric',
+				metadata: { original_file_deleted: true },
+				signers: [
+					{ me: false, signed: '2026-10-15T10:00:00Z', signingOrder: 1 },
+					{ me: true, signed: null, signingOrder: 2, sign_request_uuid: 'second-signer' },
+				],
+			}
+			expect(store.canSign(store.files[1])).toBe(true)
+		})
+
 		it('deleting signer updates signing order for remaining signers', async () => {
 			const store = useFilesStore()
 			store.selectedFileId = 1

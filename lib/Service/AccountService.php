@@ -81,6 +81,7 @@ class AccountService {
 		private ITimeFactory $timeFactory,
 		private FileUploadHelper $uploadHelper,
 		private CrlService $crlService,
+		private DocumentArchiveService $documentArchive,
 	) {
 	}
 
@@ -119,9 +120,7 @@ class AccountService {
 		if (!$this->fileData instanceof \OCA\Libresign\Db\File) {
 			$this->fileData = $this->fileMapper->getById($signRequest->getFileId());
 
-			$nodeId = $this->fileData->getNodeId();
-
-			$fileToSign = $this->root->getUserFolder($this->fileData->getUserId())->getFirstNodeById($nodeId);
+			$fileToSign = $this->documentArchive->resolve($this->fileData);
 			if ($fileToSign) {
 				$this->fileToSign = $fileToSign;
 			}

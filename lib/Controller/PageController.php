@@ -363,7 +363,7 @@ class PageController extends AEnvironmentPageAwareController {
 			$this->initialState->provideInitialState('pdfs', $this->getPdfUrls());
 			$this->initialState->provideInitialState('envelopeFiles', []);
 		}
-		$this->initialState->provideInitialState('nodeId', $this->getFileEntity()->getNodeId());
+		$this->initialState->provideInitialState('nodeId', $this->getFileEntity()->getDisplayNodeId());
 		$this->initialState->provideInitialState('nodeType', $this->getFileEntity()->getNodeType());
 
 		Util::addScript(Application::APP_ID, 'libresign-external');
