@@ -125,6 +125,8 @@ $check($archive->findByNodeId($file->getSignedNodeId()) !== null, 'signed master
 $check($file->getCompletedAt() === null, 'partial signature does not mark completion');
 $denied(static fn () => $fileService->delete($file->getId()), 'LibreSign refuses deletion of partially signed record');
 $denied(static fn () => $archive->resolve($file)->delete(), 'filesystem deletion hook protects signed master');
+$check(hash_equals($file->getSignedHash(), hash('sha256', $archive->resolve($file)->getContent())), 'blocked deletion leaves signed master intact');
+$denied(static fn () => $archive->resolve($file)->getParent()->delete(), 'recursive folder deletion cannot bypass signed-master protection');
 $firstHash = $file->getSignedHash();
 $source->delete();
 $file = $fileMapper->getById($file->getId());

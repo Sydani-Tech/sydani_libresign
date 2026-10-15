@@ -12,6 +12,7 @@ use OCA\Libresign\Enum\FileStatus;
 use OCA\Libresign\Helper\ValidateHelper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\EventDispatcher\Event;
+use OCP\EventDispatcher\GenericEvent;
 use OCP\EventDispatcher\IEventListener;
 use OCP\Files\Cache\CacheEntryRemovedEvent;
 use OCP\Files\Events\Node\BeforeNodeDeletedEvent;
@@ -31,17 +32,19 @@ class BeforeNodeDeletedListener implements IEventListener {
 
 	#[\Override]
 	public function handle(Event $event): void {
-		if ($event instanceof BeforeNodeDeletedEvent) {
-			$node = $event->getNode();
+		if ($event instanceof BeforeNodeDeletedEvent || $event instanceof GenericEvent) {
+			$node = $event instanceof BeforeNodeDeletedEvent ? $event->getNode() : $event->getSubject();
 			if (!$node instanceof File && !$node instanceof Folder) {
 				return;
 			}
+			// Protection is based on the registered master, not its cached MIME
+			// type. A renamed/misdetected PDF must not escape the guard.
+			if ($this->documentArchive->isProtectedSignedNode($node->getId())
+				|| ($node instanceof Folder && $this->documentArchive->containsProtectedSignedNode($node))) {
+				throw new \OCP\Files\NotPermittedException('Signed documents cannot be deleted.');
+			}
 			if ($node instanceof File && !in_array($node->getMimeType(), ValidateHelper::VALID_MIMETIPE)) {
 				return;
-			}
-
-			if ($this->documentArchive->isProtectedSignedNode($node->getId())) {
-				throw new \OCP\Files\NotPermittedException('Signed documents cannot be deleted.');
 			}
 			if (!$this->documentArchive->detachDeletedSource($node->getId())) {
 				$this->deleteAllByNodeId($node->getId());

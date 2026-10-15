@@ -146,6 +146,27 @@ class DocumentArchiveService {
 		return false;
 	}
 
+	/** Refuse recursive deletion through a parent of an archived master. */
+	public function containsProtectedSignedNode(Folder $folder): bool {
+		$archivePath = $this->archiveFolder()?->getPath();
+		$path = rtrim($folder->getPath(), '/');
+		if ($archivePath === null || ($path !== $archivePath
+			&& !str_starts_with($path, $archivePath . '/')
+			&& !str_starts_with($archivePath, $path . '/'))) {
+			return false;
+		}
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id', 'signed_node_id')->from('libresign_file')
+			->where($qb->expr()->isNotNull('signed_node_id'));
+		foreach ($qb->executeQuery()->fetchAll() as $row) {
+			if ($this->hasSignatures($this->fileMapper->getById((int)$row['id']))
+				&& $folder->getFirstNodeById((int)$row['signed_node_id']) instanceof File) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/** Keep signed records when a user removes an independent source file. */
 	public function detachDeletedSource(int $nodeId): bool {
 		$qb = $this->db->getQueryBuilder();

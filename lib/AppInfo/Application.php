@@ -62,6 +62,9 @@ class Application extends App implements IBootstrap {
 
 		$context->registerEventListener(LoadSidebar::class, TemplateLoader::class);
 		$context->registerEventListener(BeforeNodeDeletedEvent::class, BeforeNodeDeletedListener::class);
+		// Appdata nodes emit the generic Node event even when they are outside
+		// the active user's Files view and no typed View event is dispatched.
+		$context->registerEventListener('\\OCP\\Files::preDelete', BeforeNodeDeletedListener::class);
 		$context->registerEventListener(CacheEntryRemovedEvent::class, BeforeNodeDeletedListener::class);
 		$context->registerEventListener(SignedEvent::class, SignedCallbackListener::class);
 
