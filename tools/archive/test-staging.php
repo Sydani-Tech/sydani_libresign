@@ -13,9 +13,25 @@ if (PHP_SAPI !== 'cli' || ($argv[1] ?? '') !== '--allow-staging-mutations') {
 	fwrite(STDERR, "CLI staging test requires --allow-staging-mutations\n"); exit(1);
 }
 umask(0007);
+// sudo preserves the caller's working directory (often /root), which www-data
+// cannot traverse. PDF subprocesses must inherit an accessible directory.
+if (!chdir('/var/www/html')) {
+	fwrite(STDERR, "Cannot enter the staging Nextcloud directory.\n"); exit(1);
+}
 $_SERVER['SCRIPT_FILENAME'] = '/var/www/html/occ';
 define('OC_CONSOLE', true);
 require '/var/www/html/lib/base.php';
+// Nextcloud's CLI exception handler can log and return without a failing exit
+// status. Make an incomplete integration run unambiguously fail for the caller.
+set_exception_handler(static function(\Throwable $error): void {
+	fwrite(STDERR, 'FAIL: ' . get_class($error) . ': ' . $error->getMessage() . PHP_EOL);
+	fwrite(STDERR, $error->getFile() . ':' . $error->getLine() . PHP_EOL);
+	foreach (array_slice($error->getTrace(), 0, 8) as $frame) {
+		fwrite(STDERR, ($frame['file'] ?? '') . ':' . ($frame['line'] ?? '') . ' '
+			. ($frame['class'] ?? '') . ($frame['type'] ?? '') . ($frame['function'] ?? '') . PHP_EOL);
+	}
+	exit(1);
+});
 $config = \OCP\Server::get(\OCP\IConfig::class);
 if (!in_array('nextcloud.sydani.org', $config->getSystemValue('trusted_domains', []), true)) {
 	throw new RuntimeException('This integration test is restricted to the agreed staging server.');
@@ -91,6 +107,7 @@ foreach ($signers as $index => $signer) {
 		$input[$index][] = ['documentElementId' => $field->getId(), 'value' => $value];
 	}
 }
+$check(count($input[0]) === 3 && count($input[1]) === 3, 'required text, date and checkbox prepared for both participants');
 $sign = static function(int $index) use ($c, $fileMapper, $signRequestMapper, $session, $qaUsers, $signers, $file, $input): void {
 	$user = $index === 0 ? $qaUsers['sender'] : $qaUsers['recipient'];
 	$session->setUser($user);
@@ -138,8 +155,11 @@ $temporary = $root->getUserFolder($qaUsers['sender']->getUID())->newFile('Archiv
 $unsigned = $requests->saveFile(['file' => ['fileNode' => $temporary], 'name' => 'Archive QA unsigned ' . $suffix, 'userManager' => $qaUsers['sender'], 'status' => 0]);
 $fileService->delete($unsigned->getId());
 $check(true, 'unsigned drafts remain deletable');
-$destination = '/home/codexdev/archive-qa-' . $suffix . '.pdf';
-file_put_contents($destination, $archive->resolve($file)->getContent()); chmod($destination, 0600);
+$destination = tempnam(sys_get_temp_dir(), 'libresign-archive-qa-');
+if ($destination === false || file_put_contents($destination, $archive->resolve($file)->getContent()) === false) {
+	throw new RuntimeException('Could not save the synthetic signed QA document.');
+}
+chmod($destination, 0600);
 foreach ($qaUsers as $user) { $user->setEnabled(false); }
 $session->setUser(null);
 echo json_encode(['checksPassed' => $checks, 'signedFileId' => $file->getId(), 'signedPdf' => $destination, 'qaUserIds' => array_map(static fn ($user) => $user->getUID(), $qaUsers)], JSON_PRETTY_PRINT) . PHP_EOL;
