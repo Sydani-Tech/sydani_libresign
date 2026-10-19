@@ -117,16 +117,26 @@ defineExpose({
 
 @media (max-width: 512px) {
 	.app-sidebar {
-		height: unset;
-		top: unset;
-		right: unset;
-		left: unset;
+		// Keep the scrollport inside the app, below Nextcloud's header. An
+		// auto-height, bottom-anchored sidebar can grow above its scroll origin.
+		top: 0;
 		bottom: 0;
-		:deep(.app-sidebar-tabs__content) {
-			min-height: unset;
+		inset-inline: 0;
+		height: 100%;
+		max-height: 100%;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior-y: contain;
+		padding-bottom: env(safe-area-inset-bottom, 0px);
+		box-sizing: border-box;
+		:deep(.app-sidebar-tabs) {
+			flex: 0 0 auto;
 		}
-		transform: translateY(-1%) !important;
-		transition: transform 0.5s ease-in !important;
+		:deep(.app-sidebar-tabs__content) {
+			height: auto;
+			min-height: 0;
+		}
+		transform: none !important;
 	}
 }
 </style>

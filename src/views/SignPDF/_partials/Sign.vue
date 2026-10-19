@@ -861,7 +861,8 @@ defineExpose({
 .document-sign {
 	display: flex;
 	flex-direction: column;
-	height: 100%;
+	// The sidebar owns scrolling; let the complete form contribute its height.
+	height: auto;
 	width: 100%;
 	overscroll-behavior: contain;
 	-webkit-user-select: none;
@@ -892,8 +893,7 @@ defineExpose({
 }
 
 .sign-elements {
-	flex: 1;
-	overflow: hidden;
+	flex: 0 0 auto;
 	width: 100%;
 }
 
@@ -936,6 +936,7 @@ defineExpose({
 }
 
 .button-wrapper {
+	flex: 0 0 auto;
 	padding: calc(var(--default-grid-baseline, 4px)*2);
 }
 
