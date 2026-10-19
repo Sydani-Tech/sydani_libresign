@@ -12,6 +12,7 @@ use OCA\Files\Event\LoadSidebar;
 use OCA\Libresign\AppInfo\Application;
 use OCA\Libresign\Exception\LibresignException;
 use OCA\Libresign\Handler\CertificateEngine\CertificateEngineFactory;
+use OCA\Libresign\Helper\FrontendAssets;
 use OCA\Libresign\Helper\ValidateHelper;
 use OCA\Libresign\Service\AccountService;
 use OCA\Libresign\Service\DocMdp\ConfigService;
@@ -23,7 +24,6 @@ use OCP\EventDispatcher\IEventListener;
 use OCP\IAppConfig;
 use OCP\IRequest;
 use OCP\IUserSession;
-use OCP\Util;
 
 /**
  * @template-implements IEventListener<Event>
@@ -57,8 +57,8 @@ class TemplateLoader implements IEventListener {
 			$this->initialState->provideInitialState($key, $value);
 		}
 
-		Util::addScript(Application::APP_ID, 'libresign-tab');
-		Util::addStyle(Application::APP_ID, 'libresign-tab');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-tab');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-tab');
 	}
 
 	protected function getInitialStatePayload(): array {

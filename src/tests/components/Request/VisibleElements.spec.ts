@@ -98,6 +98,9 @@ describe('VisibleElements Component - Business Rules', () => {
 		$nextTick: () => Promise<void>
 		canSign: boolean
 		canSave: boolean
+		addField: (type: string) => void
+		selectedFieldType: string | null
+		pdfEditor: { startAddingSigner: ReturnType<typeof vi.fn> } | null
 		status: number
 		isDraft: boolean
 		variantOfSaveButton: string
@@ -169,6 +172,24 @@ describe('VisibleElements Component - Business Rules', () => {
 		filesStore.selectedFileId = 1
 
 		wrapper = createWrapper()
+	})
+
+	it.each(['signature', 'text', 'date', 'checkbox'])('starts tap-to-place %s for the selected signer', type => {
+		filesStore.files[1].signers = [{ signRequestId: 501, displayName: 'Ada' }]
+		const start = vi.fn(() => true)
+		wrapper.vm.pdfEditor = { startAddingSigner: start }
+		wrapper.vm.addField(type)
+		expect(start).toHaveBeenCalledWith(expect.objectContaining({ signRequestId: 501 }), expect.objectContaining({ type }))
+		expect(wrapper.vm.selectedFieldType).toBe(type)
+		wrapper.vm.stopAddSigner()
+		expect(wrapper.vm.selectedFieldType).toBeNull()
+	})
+
+	it('does not leave placement mode active if the PDF editor is unavailable', () => {
+		filesStore.files[1].signers = [{ signRequestId: 501, displayName: 'Ada' }]
+		wrapper.vm.addField('date')
+		expect(wrapper.vm.signerSelected).toBeNull()
+		expect(wrapper.vm.selectedFieldType).toBeNull()
 	})
 
 	describe('RULE: canSign depends on status and signer UUID', () => {

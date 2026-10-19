@@ -12,6 +12,7 @@ use OCA\Libresign\AppInfo\Application;
 use OCA\Libresign\Db\FileMapper;
 use OCA\Libresign\Db\SignRequestMapper;
 use OCA\Libresign\Exception\LibresignException;
+use OCA\Libresign\Helper\FrontendAssets;
 use OCA\Libresign\Helper\JSActions;
 use OCA\Libresign\Helper\ValidateHelper;
 use OCA\Libresign\Middleware\Attribute\PrivateValidation;
@@ -46,7 +47,6 @@ use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
-use OCP\Util;
 use Psr\Log\LoggerInterface;
 
 class PageController extends AEnvironmentPageAwareController {
@@ -110,8 +110,8 @@ class PageController extends AEnvironmentPageAwareController {
 		$this->initialState->provideInitialState('docmdp_config', $this->docMdpConfigService->getConfig());
 		$this->initialState->provideInitialState('legal_information', $this->appConfig->getValueString(Application::APP_ID, 'legal_information'));
 
-		Util::addScript(Application::APP_ID, 'libresign-main');
-		Util::addStyle(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-main');
 
 		if (class_exists(LoadViewer::class)) {
 			$this->eventDispatcher->dispatchTyped(new LoadViewer());
@@ -156,8 +156,8 @@ class PageController extends AEnvironmentPageAwareController {
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/f/incomplete')]
 	public function incomplete(): TemplateResponse {
-		Util::addScript(Application::APP_ID, 'libresign-main');
-		Util::addStyle(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-main');
 		$response = new TemplateResponse(Application::APP_ID, 'main');
 		return $response;
 	}
@@ -173,8 +173,8 @@ class PageController extends AEnvironmentPageAwareController {
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/p/incomplete')]
 	public function incompleteP(): TemplateResponse {
-		Util::addScript(Application::APP_ID, 'libresign-main');
-		Util::addStyle(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-main');
 		$response = new TemplateResponse(Application::APP_ID, 'main', [], TemplateResponse::RENDER_AS_BASE);
 		return $response;
 	}
@@ -366,8 +366,8 @@ class PageController extends AEnvironmentPageAwareController {
 		$this->initialState->provideInitialState('nodeId', $this->getFileEntity()->getDisplayNodeId());
 		$this->initialState->provideInitialState('nodeType', $this->getFileEntity()->getNodeType());
 
-		Util::addScript(Application::APP_ID, 'libresign-external');
-		Util::addStyle(Application::APP_ID, 'libresign-external');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-external');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-external');
 		if (class_exists(LoadViewer::class)) {
 			$this->eventDispatcher->dispatchTyped(new LoadViewer());
 		}
@@ -521,8 +521,8 @@ class PageController extends AEnvironmentPageAwareController {
 			);
 		}
 
-		Util::addScript(Application::APP_ID, 'libresign-validation');
-		Util::addStyle(Application::APP_ID, 'libresign-validation');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-validation');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-validation');
 		$response = new TemplateResponse(Application::APP_ID, 'external', [], TemplateResponse::RENDER_AS_BASE);
 
 		return $response;
@@ -570,8 +570,8 @@ class PageController extends AEnvironmentPageAwareController {
 			$this->accountService->getConfig($this->userSession->getUser())
 		);
 
-		Util::addScript(Application::APP_ID, 'libresign-main');
-		Util::addStyle(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-main');
 		$response = new TemplateResponse(Application::APP_ID, 'reset_password');
 
 		return $response;
@@ -637,7 +637,7 @@ class PageController extends AEnvironmentPageAwareController {
 				->toArray()
 		);
 
-		Util::addScript(Application::APP_ID, 'libresign-validation');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-validation');
 		if (class_exists(LoadViewer::class)) {
 			$this->eventDispatcher->dispatchTyped(new LoadViewer());
 		}

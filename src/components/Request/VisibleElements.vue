@@ -37,15 +37,17 @@
 						<select id="field-recipient" v-model="selectedSignerIndex">
 							<option v-for="(signer, index) in pdfEditorSigners" :key="signer.signRequestId" :value="index">{{ signer.displayName || signer.email }}</option>
 						</select>
-						<p>{{ t('libresign', 'Drag a field onto the document, or click a field and then click its position.') }}</p>
+						<p class="field-palette__desktop-hint">{{ t('libresign', 'Drag a field onto the document, or click a field and then click its position.') }}</p>
+						<p class="field-palette__mobile-hint">{{ t('libresign', 'Choose a field, then tap the document. Drag to move; use the corners to resize.') }}</p>
 						<div class="field-palette__buttons">
 							<button v-for="field in palette" :key="field.type" type="button" draggable="true"
-								:disabled="!canSave" @click="addField(field.type)" @dragstart="dragField($event, field.type)">
+								:disabled="!canSave || loading" :aria-pressed="selectedFieldType === field.type" :class="{ 'field-palette__button--active': selectedFieldType === field.type }"
+								@click="addField(field.type)" @dragstart="dragField($event, field.type)">
 								<span aria-hidden="true">{{ field.icon }}</span> {{ field.label }}
 							</button>
 						</div>
 					</li>
-					<li v-if="signerSelected"
+					<li v-if="signerSelected" role="status" aria-live="polite"
 						:class="{ tip: signerSelected }">
 						<span>{{ t('libresign', 'Click on the place you want to add.') }}</span>
 						<NcButton variant="primary"
@@ -57,7 +59,7 @@
 						:key="index"
 						:signer="signer"
 						:require-request-permission="false"
-						:class="{ disabled: signerSelected }"
+						class="field-palette__signer" :class="{ disabled: signerSelected }"
 						@select="handleSignerSelect">
 						<template #actions>
 							<slot name="actions" v-bind="{ signer }" />
@@ -68,7 +70,7 @@
 					<NcButton v-if="canSave"
 						:variant="variantOfSaveButton"
 						:wide="true"
-						:class="{ disabled: signerSelected }"
+						:disabled="loading || !!signerSelected"
 						@click="save()">
 						{{ t('libresign', 'Save') }}
 					</NcButton>
@@ -108,7 +110,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcChip from '@nextcloud/vue/components/NcChip'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcModal from '@nextcloud/vue/components/NcModal'
-import { computed, getCurrentInstance, nextTick, onBeforeUnmount, onMounted, ref, type ComponentPublicInstance } from 'vue'
+import { computed, getCurrentInstance, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue'
 
 import PdfEditor from '../PdfEditor/PdfEditor.vue'
 import Signer from '../Signers/Signer.vue'
@@ -475,7 +477,9 @@ const canRequestSign = ref(loadState('libresign', 'can_request_sign', false))
 const modal = ref(false)
 const loading = ref(false)
 const signerSelected = ref<SignerSummaryRecord | null>(null)
+const selectedFieldType = ref<string | null>(null)
 const selectedSignerIndex = ref(0)
+watch(selectedSignerIndex, () => stopAddSigner())
 const palette = [
 	{ type: 'signature', icon: '✎', label: t('libresign', 'Signature') },
 	{ type: 'text', icon: 'T', label: t('libresign', 'Text') },
@@ -485,10 +489,12 @@ const palette = [
 function addField(type: string) {
 	const signer = pdfEditorSigners.value[selectedSignerIndex.value]
 	if (!signer || !canSave.value) return
-	signerSelected.value = signer
 	const sizes: Record<string, [number, number]> = { text: [180, 32], date: [120, 32], checkbox: [24, 24], signature: [180, 64] }
+	if (!sizes[type]) return
 	const [width, height] = sizes[type]
-	getPdfEditor()?.startAddingSigner?.(signer, { width, height, type })
+	const started = getPdfEditor()?.startAddingSigner?.(signer, { width, height, type })
+	signerSelected.value = started ? signer : null
+	selectedFieldType.value = started ? type : null
 }
 function dragField(event: DragEvent, type: string) {
 	addField(type)
@@ -815,12 +821,14 @@ function onSelectSigner(signer: SignerSummaryRecord) {
 		return
 	}
 	signerSelected.value = signer
+	selectedFieldType.value = 'signature'
 	const started = pdfEditorRef.startAddingSigner?.(signerSelected.value, {
 		width: width.value,
 		height: height.value,
 	})
 	if (!started) {
 		signerSelected.value = null
+		selectedFieldType.value = null
 	}
 	if (!started) {
 		return
@@ -846,6 +854,7 @@ function handleAddingEnded() {
 function stopAddSigner() {
 	getPdfEditor()?.cancelAdding?.()
 	signerSelected.value = null
+	selectedFieldType.value = null
 }
 
 async function onDeleteSigner(visibleElement: VisibleElementRecord) {
@@ -1005,6 +1014,8 @@ defineExpose({
 	statusLabel,
 	isDraft,
 	getPdfElements,
+	addField,
+	selectedFieldType,
 	showModal,
 	fetchFiles,
 	aggregateVisibleElementsByFiles,
@@ -1027,12 +1038,14 @@ defineExpose({
 	gap: 10px;
 	padding: 12px 0;
 	select { width: 100%; }
+	&__mobile-hint { display: none; }
 	&__buttons {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 8px;
 		button { text-align: start; cursor: grab; min-height: 44px; }
 		span { display: inline-block; min-width: 24px; color: var(--color-primary-element); }
+		.field-palette__button--active { background: var(--color-primary-element); color: var(--color-primary-element-text); span { color: inherit; } }
 	}
 }
 .visible-elements-container {
@@ -1040,6 +1053,9 @@ defineExpose({
 	flex-direction: column;
 	height: 100%;
 	width: 100%;
+	min-height: 0;
+	overflow: hidden;
+	> .pdf-editor { flex: 1 1 0; min-width: 0; min-height: 0; height: auto; }
 
 	@media (min-width: 768px) {
 		flex-direction: row;
@@ -1074,8 +1090,10 @@ defineExpose({
 		overflow-x: hidden;
 
 		@media (max-width: 767px) {
-			max-height: 30vh;
-			min-height: 200px;
+			flex: 0 0 auto;
+			max-height: none;
+			min-height: 0;
+			overflow: visible;
 		}
 
 		@media (min-width: 768px) {
@@ -1122,6 +1140,32 @@ defineExpose({
 			white-space: nowrap;
 			border: 0;
 		}
+	}
+}
+
+@media (max-width: 767px) {
+	.visible-elements-container {
+		.modal_name { margin-bottom: 4px; .name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
+		.sign-details { padding: 6px 10px; }
+		.view-sign-detail__sidebar { margin: 0; padding: 0; }
+		.field-palette { gap: 4px; padding: 0; margin: 0; }
+		.field-palette > label { font-size: 12px; }
+		.field-palette select { min-height: 36px; height: 36px; margin: 0; }
+		.field-palette__desktop-hint, .field-palette__signer { display: none; }
+		.field-palette__mobile-hint { display: block; font-size: 12px; line-height: 1.35; margin: 2px 0; }
+		.field-palette__buttons {
+			grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px;
+			button { padding: 6px 2px; text-align: center; min-width: 0; font-size: 12px; cursor: pointer; white-space: normal; }
+			span { min-width: 0; display: block; font-size: 16px; }
+		}
+		.sign-details__actions { position: static; display: flex; gap: 6px; padding-top: 4px; > * { flex: 1; min-width: 0; margin: 0; } }
+		.sign-details .tip { flex-direction: row; justify-content: space-between; gap: 4px; padding: 4px; margin: 4px 0 0; font-size: 12px; }
+	}
+}
+@media (max-width: 767px) and (max-height: 500px) {
+	.visible-elements-container {
+		.modal_name, .field-palette__mobile-hint, .field-palette > label { display: none; }
+		.field-palette__buttons span { display: inline; font-size: 14px; }
 	}
 }
 </style>

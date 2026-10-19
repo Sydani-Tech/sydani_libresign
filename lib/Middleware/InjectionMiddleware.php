@@ -18,6 +18,7 @@ use OCA\Libresign\Db\SignRequestMapper;
 use OCA\Libresign\Enum\SignRequestStatus;
 use OCA\Libresign\Exception\LibresignException;
 use OCA\Libresign\Handler\CertificateEngine\CertificateEngineFactory;
+use OCA\Libresign\Helper\FrontendAssets;
 use OCA\Libresign\Helper\JSActions;
 use OCA\Libresign\Helper\ValidateHelper;
 use OCA\Libresign\Middleware\Attribute\CanSignRequestUuid;
@@ -48,7 +49,6 @@ use OCP\ISession;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserSession;
-use OCP\Util;
 use Psr\Log\LoggerInterface;
 
 class InjectionMiddleware extends Middleware {
@@ -351,8 +351,8 @@ class InjectionMiddleware extends Middleware {
 				$this->initialState->provideInitialState('error', ['message' => $exception->getMessage()]);
 			}
 
-			Util::addScript(Application::APP_ID, 'libresign-' . $template);
-			Util::addStyle(Application::APP_ID, 'libresign-' . $template);
+			FrontendAssets::addScript(Application::APP_ID, 'libresign-' . $template);
+			FrontendAssets::addStyle(Application::APP_ID, 'libresign-' . $template);
 			$response = new TemplateResponse(
 				appName: Application::APP_ID,
 				templateName: $template,

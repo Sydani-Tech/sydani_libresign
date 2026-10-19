@@ -9,7 +9,7 @@
 			:init-file-names="fileNames"
 			:page-count-format="t('libresign', '{currentPage} of {totalPages}')"
 			:page-aria-label="getPageAriaLabel"
-			:auto-fit-zoom="true"
+			:auto-fit-zoom="autoFitZoom"
 			:read-only="readOnly"
 			:emit-object-click="true"
 			:hide-selection-ui="readOnly"
@@ -25,10 +25,11 @@
 				<slot name="actions" v-bind="slotProps">
 					<template v-if="isSigningField(slotProps.object?.type)">
 						<input :value="slotProps.object.metadata?.label ?? slotProps.object.visibleElement?.metadata?.label ?? ''"
+							class="pdf-editor__field-label"
 							:aria-label="t('libresign', 'Field label')" :placeholder="t('libresign', 'Field label')" maxlength="100"
-							@change="updateFieldMetadata(slotProps.object, { label: ($event.target as HTMLInputElement).value })" @pointerdown.stop @mousedown.stop>
-						<label><input type="checkbox" :checked="(slotProps.object.metadata ?? slotProps.object.visibleElement?.metadata)?.required !== false"
-							@change="updateFieldMetadata(slotProps.object, { required: ($event.target as HTMLInputElement).checked })" @pointerdown.stop @mousedown.stop> {{ t('libresign', 'Required') }}</label>
+							@change="updateFieldMetadata(slotProps.object, { label: ($event.target as HTMLInputElement).value })" @pointerdown.stop @mousedown.stop @touchstart.stop>
+						<label class="pdf-editor__required"><input type="checkbox" :checked="(slotProps.object.metadata ?? slotProps.object.visibleElement?.metadata)?.required !== false"
+							@change="updateFieldMetadata(slotProps.object, { required: ($event.target as HTMLInputElement).checked })" @pointerdown.stop @mousedown.stop @touchstart.stop> {{ t('libresign', 'Required') }}</label>
 					</template>
 					<SignerMenu
 						v-if="hasMultipleSigners && slotProps.object?.signer"
@@ -76,6 +77,11 @@
 					:editable="readOnly && isEditableSigningField(object)" />
 			</template>
 		</PDFElements>
+		<div class="pdf-editor__zoom" role="group" :aria-label="t('libresign', 'Document zoom')">
+			<button type="button" :aria-label="t('libresign', 'Zoom out')" @click="changeZoom(1 / 1.25)">−</button>
+			<button type="button" @click="fitDocument">{{ t('libresign', 'Fit') }}</button>
+			<button type="button" :aria-label="t('libresign', 'Zoom in')" @click="changeZoom(1.25)">+</button>
+		</div>
 	</div>
 </template>
 
@@ -149,6 +155,9 @@ type PdfElementsInstance = {
 	selectedDocIndex?: number
 	autoFitZoom?: boolean
 	scale?: number
+	visualScale?: number
+	autoFitApplied?: boolean
+	clampZoomScale?: (scale: number) => number
 	commitZoom?: () => void
 }
 
@@ -179,6 +188,7 @@ const emit = defineEmits<{
 }>()
 
 const pdfElements = ref<PdfElementsInstance | null>(null)
+const autoFitZoom = ref(true)
 
 const ignoreClickOutsideSelectors = computed(() => ['.action-item__popper', '.action-item', '.pdf-elements-actions-toolbar'])
 
@@ -359,6 +369,24 @@ function cancelAdding() {
 	pdfElements.value?.cancelAdding()
 }
 
+function changeZoom(factor: number) {
+	const editor = pdfElements.value
+	if (!editor?.commitZoom) return
+	const scale = (editor.visualScale || editor.scale || 1) * factor
+	autoFitZoom.value = false
+	editor.visualScale = editor.clampZoomScale?.(scale) ?? Math.min(3, Math.max(0.2, scale))
+	editor.commitZoom()
+}
+
+async function fitDocument() {
+	const editor = pdfElements.value
+	if (!editor) return
+	autoFitZoom.value = true
+	await nextTick()
+	editor.autoFitApplied = false
+	editor.adjustZoomToFit?.()
+}
+
 async function addSigner(signer: SignerSummaryRecord | SignerDetailRecord, visibleElement: VisibleElementRecord, options: { documentIndex?: number } = {}) {
 	if (!pdfElements.value || !visibleElement.coordinates) {
 		return
@@ -417,6 +445,7 @@ defineExpose({
 	mdiContentCopy,
 	mdiDelete,
 	pdfElements,
+	autoFitZoom,
 	ignoreClickOutsideSelectors,
 	toolbarStyleVars,
 	hasMultipleSigners,
@@ -431,6 +460,8 @@ defineExpose({
 	findObjectLocation,
 	startAddingSigner,
 	cancelAdding,
+	changeZoom,
+	fitDocument,
 	addSigner,
 	waitForPageRender,
 	getTotalObjectsCount,
@@ -440,12 +471,37 @@ defineExpose({
 
 <style lang="scss">
 .pdf-editor {
+	position: relative;
 	width: 100%;
 	height: 100%;
 	overflow: hidden;
 	overscroll-behavior: contain;
-	:deep(.draggable-wrapper:has(.signing-field--editable) > .draggable-element) {
+	.draggable-wrapper:has(.signing-field--editable) > .draggable-element {
 		pointer-events: auto !important;
+	}
+	&__zoom { display: none; }
+	&__required { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+	@media (max-width: 767px) {
+		&__zoom {
+			display: flex; position: absolute; top: 8px; right: 8px; z-index: 8;
+			border: 1px solid var(--color-border); border-radius: 8px;
+			background: var(--color-main-background); box-shadow: 0 2px 8px #0002;
+			button { min-width: 44px; min-height: 44px; margin: 0; border: 0; background: transparent; color: var(--color-main-text); }
+		}
+		.resize-handle { width: 24px; height: 24px; touch-action: none; }
+		.handle-top-left { top: -13px; left: -13px; }
+		.handle-top-right { top: -13px; right: -13px; }
+		.handle-bottom-left { bottom: -13px; left: -13px; }
+		.handle-bottom-right { bottom: -13px; right: -13px; }
+		.pdf-elements-actions-toolbar {
+			position: fixed; left: 12px !important; right: 12px; top: auto !important;
+			bottom: calc(12px + env(safe-area-inset-bottom)); transform: none !important;
+			max-width: calc(100% - 24px); box-sizing: border-box;
+			flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; z-index: 20;
+			.pdf-editor__field-label { flex: 1 1 120px; min-width: 0; width: auto; min-height: 44px; font-size: 16px; margin: 0; }
+			.pdf-editor__required { min-height: 44px; }
+			.pdf-elements-action-btn { min-height: 44px; min-width: 44px; }
+		}
 	}
 }
 

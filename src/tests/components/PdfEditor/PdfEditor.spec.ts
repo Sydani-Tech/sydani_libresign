@@ -61,6 +61,7 @@ type PdfElementsMock = {
 }
 
 type PdfEditorVm = {
+	autoFitZoom: boolean
 	pdfElements: PdfElementsMock | null
 	$refs: {
 		pdfElements: PdfElementsMock
@@ -152,6 +153,20 @@ describe('PdfEditor Component - Business Rules', () => {
 		pdfElementsWorkerReadyStates.length = 0
 		vi.clearAllMocks()
 		wrapper = createWrapper()
+	})
+
+	it('offers zoom and fit without modifying any PDF field coordinates', async () => {
+		const editor = getPdfElements() as PdfElementsMock & { visualScale: number, scale: number, autoFitApplied: boolean, commitZoom: ReturnType<typeof vi.fn> }
+		Object.assign(editor, { visualScale: 0.5, scale: 0.5, autoFitApplied: true, commitZoom: vi.fn() })
+		await wrapper.get('button[aria-label="Zoom in"]').trigger('click')
+		expect(editor.visualScale).toBe(0.625)
+		expect(wrapper.vm.autoFitZoom).toBe(false)
+		expect(editor.commitZoom).toHaveBeenCalledOnce()
+		expect(editor.updateObject).not.toHaveBeenCalled()
+		await wrapper.get('.pdf-editor__zoom button:nth-child(2)').trigger('click')
+		expect(wrapper.vm.autoFitZoom).toBe(true)
+		expect(editor.autoFitApplied).toBe(false)
+		expect(editor.adjustZoomToFit).toHaveBeenCalledOnce()
 	})
 
 	describe('RULE: worker initialization ordering', () => {

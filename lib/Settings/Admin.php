@@ -11,6 +11,7 @@ namespace OCA\Libresign\Settings;
 use OCA\Libresign\AppInfo\Application;
 use OCA\Libresign\Exception\LibresignException;
 use OCA\Libresign\Handler\CertificateEngine\CertificateEngineFactory;
+use OCA\Libresign\Helper\FrontendAssets;
 use OCA\Libresign\Service\CertificatePolicyService;
 use OCA\Libresign\Service\DocMdp\ConfigService as DocMdpConfigService;
 use OCA\Libresign\Service\FooterService;
@@ -21,7 +22,6 @@ use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IAppConfig;
 use OCP\Settings\ISettings;
-use OCP\Util;
 
 /**
  * @psalm-import-type LibresignAdminSignatureEngine from \OCA\Libresign\ResponseDefinitions
@@ -45,8 +45,8 @@ class Admin implements ISettings {
 	}
 	#[\Override]
 	public function getForm(): TemplateResponse {
-		Util::addScript(Application::APP_ID, 'libresign-settings');
-		Util::addStyle(Application::APP_ID, 'libresign-settings');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-settings');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-settings');
 		try {
 			$signatureParsed = $this->signatureTextService->parse();
 			$this->initialState->provideInitialState('signature_text_parsed', $signatureParsed['parsed']);

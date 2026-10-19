@@ -4,13 +4,28 @@
 -->
 <template>
 	<div class="document-sign">
-		<div v-if="signingFields.length" class="signing-fields-summary">
+		<div v-if="signingFields.length" ref="signingFieldsSummary" class="signing-fields-summary">
 			<h3>{{ t('libresign', 'Complete your fields') }}</h3>
 			<p>{{ t('libresign', 'Fill the highlighted fields on the document before signing.') }}</p>
-			<label v-for="field in signingFields" :key="field.elementId" class="signing-fields-summary__field">
+			<NcNoteCard v-if="signingFieldIssues.length" type="warning" class="signing-fields-summary__notice" role="status" aria-live="polite" aria-atomic="true">
+				<strong>{{ t('libresign', 'Complete these fields before signing:') }}</strong>
+				<ul>
+					<li v-for="{ field, issue } in signingFieldIssues" :key="field.elementId">
+						<button type="button" class="signing-fields-summary__issue" @click="focusSigningField(field.elementId)">
+							<strong>{{ field.metadata?.label || field.type }} — {{ issue === 'required' ? t('libresign', 'Required') : t('libresign', 'Enter a valid value') }}</strong>
+						</button>
+					</li>
+				</ul>
+			</NcNoteCard>
+			<label v-for="field in signingFields" :key="field.elementId" class="signing-fields-summary__field"
+				:class="{ 'signing-fields-summary__field--checkbox': field.type === 'checkbox' }">
 				<span>{{ field.metadata?.label || field.type }}{{ field.metadata?.required !== false ? ' *' : '' }}</span>
-				<input v-if="field.type === 'checkbox'" v-model="signingFieldsStore.values[field.elementId]" type="checkbox">
-				<input v-else v-model="signingFieldsStore.values[field.elementId]" :type="field.type === 'date' ? 'date' : 'text'" maxlength="500">
+				<input v-if="field.type === 'checkbox'" v-model="signingFieldsStore.values[field.elementId]" type="checkbox"
+					:data-signing-input="field.elementId" :required="field.metadata?.required !== false"
+					:aria-invalid="getSigningFieldIssue(field, signingFieldsStore.values[field.elementId]) !== null">
+				<input v-else v-model="signingFieldsStore.values[field.elementId]" :type="field.type === 'date' ? 'date' : 'text'" maxlength="500"
+					:data-signing-input="field.elementId" :required="field.metadata?.required !== false"
+					:aria-invalid="getSigningFieldIssue(field, signingFieldsStore.values[field.elementId]) !== null">
 			</label>
 		</div>
 		<div class="sign-elements">
@@ -252,7 +267,7 @@ import type {
 	SignatureMethodConfig,
 	SubmitSignaturePayload,
 } from '../../../services/signSubmit'
-import { isSigningField, useSigningFieldsStore } from '../../../store/signingFields'
+import { getSigningFieldIssue, isSigningField, useSigningFieldsStore } from '../../../store/signingFields'
 
 type OpenApiAccountMe = operations['account-me']['responses'][200]['content']['application/json']['ocs']['data']
 type LibreSignAccountMe = Omit<OpenApiAccountMe, 'settings'> & {
@@ -460,9 +475,29 @@ let actionHandler: SignFlowHandler | null = null
 const currentDocument = computed<SignDocument>(() => signStore.document)
 const visibleElementsDocument = computed(() => normalizeDocumentForVisibleElements(currentDocument.value))
 const signingFieldsStore = useSigningFieldsStore()
+const signingFieldsSummary = ref<HTMLElement | null>(null)
 const signingFields = computed(() => getVisibleElementsFromDocument(visibleElementsDocument.value)
 	.filter(field => isSigningField(field.type) && currentUserSignRequestIds.value.has(field.signRequestId)))
 const currentUserSignRequestIds = computed(() => new Set(getCurrentUserSignRequestIds(visibleElementsDocument.value)))
+const signingFieldIssues = computed(() => signingFields.value
+	.map(field => ({ field, issue: getSigningFieldIssue(field, signingFieldsStore.values[field.elementId]) }))
+	.filter(row => row.issue !== null))
+
+function focusSigningField(elementId: number) {
+	void nextTick(() => {
+		const input = signingFieldsSummary.value?.querySelector<HTMLInputElement>(`[data-signing-input="${Number(elementId)}"]`)
+		input?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+		input?.focus({ preventScroll: true })
+	})
+}
+
+function validateSigningFields(): boolean {
+	const firstIssue = signingFieldIssues.value[0]
+	if (!firstIssue) return true
+	// Keep the notice next to the inputs, not in a toast behind the header.
+	focusSigningField(firstIssue.field.elementId)
+	return false
+}
 
 const elements = computed(() => {
 	const signRequestIds = currentUserSignRequestIds.value
@@ -630,6 +665,7 @@ async function signWithEmailToken() {
 }
 
 let submitSignature = async (methodConfig: SignatureMethodConfig = {}) => {
+	if (!validateSigningFields()) return
 	loading.value = true
 	signStore.clearSigningErrors()
 
@@ -712,13 +748,7 @@ let submitSignature = async (methodConfig: SignatureMethodConfig = {}) => {
 function confirmSignDocument() {
 	ensureServices()
 	signStore.clearSigningErrors()
-	for (const field of signingFields.value) {
-		const value = signingFieldsStore.values[field.elementId]
-		if (field.metadata?.required !== false && (field.type === 'checkbox' ? value !== true : !String(value ?? '').trim())) {
-			showError(t('libresign', 'Please complete field: {label}', { label: field.metadata?.label || field.type }))
-			return
-		}
-	}
+	if (!validateSigningFields()) return
 
 	const unmetRequirement = requirementValidator!.getFirstUnmetRequirement({
 		errors: signStore.errors,
@@ -747,6 +777,7 @@ function proceedWithSigning() {
 function executeSigningAction(action: string) {
 	ensureServices()
 	signStore.clearSigningErrors()
+	if (!validateSigningFields()) return
 
 	const unmetRequirement = requirementValidator!.getFirstUnmetRequirement({
 		errors: signStore.errors,
@@ -836,6 +867,28 @@ defineExpose({
 	-webkit-user-select: none;
 	user-select: none;
 	-webkit-touch-callout: none;
+}
+
+.signing-fields-summary {
+	display: grid;
+	gap: 12px;
+	flex: 0 0 auto;
+	padding: 8px;
+	user-select: text;
+	&__notice { margin: 0; }
+	&__notice strong { font-weight: 700; }
+	&__notice ul { margin: 4px 0 0; padding: 0; list-style: none; }
+	&__issue { background: transparent; border: 0; padding: 4px 0; text-align: start; color: inherit; cursor: pointer; white-space: normal; }
+	&__field {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+		input:not([type='checkbox']) { width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; margin: 0; }
+		input[aria-invalid='true'] { border-color: var(--color-warning); }
+		&--checkbox { flex-direction: row; align-items: center; gap: 12px; min-height: 44px; }
+	}
+	@media (max-width: 767px) { input:not([type='checkbox']) { font-size: 16px; } }
 }
 
 .sign-elements {

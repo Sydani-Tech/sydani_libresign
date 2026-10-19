@@ -499,6 +499,60 @@ describe('Sign.vue - signWithTokenCode', () => {
 	})
 
 	describe('Sign.vue - lifecycle regressions', () => {
+		it('shows bold required notices beside the inputs and removes each when completed', async () => {
+			setActivePinia(createPinia())
+			const { useSignStore } = await import('../../../store/sign.js')
+			const { useSigningFieldsStore } = await import('../../../store/signingFields')
+			const store = useSignStore()
+			const fields = ['date', 'text', 'checkbox'].map((type, index) => ({
+				elementId: 201 + index, fileId: 1, signRequestId: 501, type,
+				metadata: { label: ['Approval date', 'Full name', 'Confirmation'][index], required: true },
+				coordinates: { page: 1, left: 10, top: 20 + 40 * index, width: 100, height: 30 },
+			}))
+			store.document = createSignDocument({ status: FILE_STATUS.ABLE_TO_SIGN,
+				signers: [{ me: true, status: SIGN_REQUEST_STATUS.ABLE_TO_SIGN, signRequestId: 501 }], visibleElements: fields })
+			const Sign = (await import('../../../views/SignPDF/_partials/Sign.vue')).default
+			const options = createSignMountOptions()
+			const wrapper = mount(Sign, { ...options, global: { ...options.global, stubs: { ...options.global.stubs,
+				NcNoteCard: { template: '<aside><slot /></aside>' },
+			} } })
+			await flushPromises()
+			expect(wrapper.findAll('.signing-fields-summary__notice strong')).toHaveLength(4)
+			expect(wrapper.get('.signing-fields-summary').text()).toContain('Approval date — Required')
+			await wrapper.get('[data-signing-input="201"]').setValue('2026-10-19')
+			expect(wrapper.findAll('.signing-fields-summary__issue')).toHaveLength(2)
+			await wrapper.get('[data-signing-input="202"]').setValue('Ada')
+			await wrapper.get('[data-signing-input="203"]').setValue(true)
+			expect(wrapper.find('.signing-fields-summary__notice').exists()).toBe(false)
+			expect(wrapper.findAll('.signing-fields-summary input')).toHaveLength(3)
+			// Shared state also reacts to values entered on the PDF itself.
+			useSigningFieldsStore().values[201] = ''
+			await wrapper.vm.$nextTick()
+			expect(wrapper.get('.signing-fields-summary__notice').text()).toContain('Approval date — Required')
+			wrapper.unmount()
+		})
+
+		it('blocks pending actions and submission before requesting a password when a required field is empty', async () => {
+			setActivePinia(createPinia())
+			const { useSignStore } = await import('../../../store/sign.js')
+			const store = useSignStore()
+			store.document = createSignDocument({ status: FILE_STATUS.ABLE_TO_SIGN,
+				signers: [{ me: true, status: SIGN_REQUEST_STATUS.ABLE_TO_SIGN, signRequestId: 501 }],
+				visibleElements: [{ elementId: 201, fileId: 1, signRequestId: 501, type: 'date', metadata: { required: true },
+					coordinates: { page: 1, left: 10, top: 20, width: 100, height: 30 } }],
+			})
+			const methods = useSignMethodsStore()
+			methods.settings = { password: {} }
+			store.queueAction('sign')
+			const submit = vi.spyOn(store, 'submitSignature')
+			const wrapper = await mountRealSignComponent()
+			await flushPromises()
+			expect(methods.modal.password).toBe(false)
+			await (wrapper.vm as unknown as { submitSignature: (options: { method: string }) => Promise<void> }).submitSignature({ method: 'password' })
+			expect(submit).not.toHaveBeenCalled()
+			wrapper.unmount()
+		})
+
 		it('lets an envelope signer fill fields assigned to their child request', async () => {
 			setActivePinia(createPinia())
 			const { useSignStore } = await import('../../../store/sign.js')

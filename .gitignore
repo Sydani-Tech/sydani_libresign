@@ -22,4 +22,6 @@ node_modules/
 /lib/Vendor/
 /coverage
 /dist/
+/resources/frontend-assets.json
+/resources/frontend-assets.json.tmp
 /test-results/
