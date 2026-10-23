@@ -101,6 +101,7 @@ const routes: RouteRecordRaw[] = [
 	},
 
 	// internal pages
+	{path:'/f/dashboard',name:'signingDashboard',component:()=>import('../views/SigningDashboard.vue')},
 	{
 		path: '/f/campaign',
 		name: 'campaign',
@@ -114,15 +115,13 @@ const routes: RouteRecordRaw[] = [
 	{
 		path: '/f/',
 		redirect: () => {
-			const canRequestSign = loadState('libresign', 'can_request_sign', false)
-			return { name: canRequestSign ? 'requestFiles' : 'fileslist' }
+			return { name: 'signingDashboard' }
 		},
 	},
 	{
 		path: '/',
 		redirect: () => {
-			const canRequestSign = loadState('libresign', 'can_request_sign', false)
-			return { name: canRequestSign ? 'requestFiles' : 'fileslist' }
+			return { name: 'signingDashboard' }
 		},
 	},
 	{

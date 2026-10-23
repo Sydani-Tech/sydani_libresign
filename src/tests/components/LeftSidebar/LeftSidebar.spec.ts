@@ -74,7 +74,7 @@ describe('LeftSidebar', () => {
 		})
 
 		const icons = wrapper.findAll('.menu-icon')
-		expect(icons).toHaveLength(5)
+		expect(icons).toHaveLength(6)
 		for (const icon of icons) {
 			expect(icon.attributes('data-path')).toBeTruthy()
 		}

@@ -6,6 +6,7 @@
 <template>
 	<NcAppNavigation>
 		<template #list>
+			<NcAppNavigationItem id="signing-dashboard" :to="{name:'signingDashboard'}" :name="t('libresign','Dashboard')" @click="unselectFile"><template #icon><NcIconSvgWrapper :path="mdiViewDashboardOutline" :size="20" /></template></NcAppNavigationItem>
 			<NcAppNavigationItem v-if="canRequestSign"
 				id="request-files"
 				:to="{name: 'requestFiles'}"
@@ -80,6 +81,7 @@ import {
 	mdiFileSign,
 	mdiFolder,
 	mdiShieldLock,
+	mdiViewDashboardOutline,
 } from '@mdi/js'
 
 

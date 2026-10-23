@@ -11,6 +11,7 @@ use OCA\Libresign\AppInfo\Application;
 use OCA\Libresign\Service\CampaignAccessService;
 use OCA\Libresign\Service\CampaignDefinition;
 use OCA\Libresign\Service\CampaignRecipientResolver;
+use OCA\Libresign\Service\CampaignRecipientImport;
 use OCA\Libresign\Service\CampaignService;
 use OCA\Libresign\Service\CampaignStorage;
 use OCP\AppFramework\Db\DoesNotExistException;
@@ -34,7 +35,8 @@ use Psr\Log\LoggerInterface;
 class CampaignController extends OCSController {
 	public function __construct(IRequest $request, private CampaignService $campaigns, private CampaignAccessService $access,
 		private CampaignRecipientResolver $resolver, private CampaignStorage $storage, private IUserSession $session,
-		private IUserManager $users, private IGroupManager $groups, private LoggerInterface $logger) {
+		private IUserManager $users, private IGroupManager $groups, private LoggerInterface $logger,
+		private CampaignRecipientImport $importer) {
 		parent::__construct(Application::APP_ID, $request);
 	}
 
@@ -169,6 +171,31 @@ class CampaignController extends OCSController {
 	#[NoAdminRequired]
 	#[ApiRoute(verb: 'POST', url: '/api/{apiVersion}/campaign/resolve', requirements: ['apiVersion' => '(v1)'])]
 	public function resolve(array $recipient): DataResponse { return $this->respond(function () use ($recipient) { $this->user(); return $this->resolver->resolve($recipient); }); }
+
+	#[NoAdminRequired]
+	#[ApiRoute(verb: 'POST', url: '/api/{apiVersion}/campaign/import', requirements: ['apiVersion' => '(v1)'])]
+	public function importRecipients(string $file, string $filename, string $sheet = ''): DataResponse {
+		return $this->respond(function () use ($file, $filename, $sheet) { $this->user(); return $this->importer->parse($file, $filename, $sheet); });
+	}
+
+	#[NoAdminRequired]
+	#[ApiRoute(verb: 'POST', url: '/api/{apiVersion}/campaign/resolve-import', requirements: ['apiVersion' => '(v1)'])]
+	public function resolveImport(array $recipients): DataResponse {
+		return $this->respond(function () use ($recipients) {
+			$this->user();
+			if (!$recipients || count($recipients) > CampaignDefinition::MAX_RECIPIENTS) throw new \InvalidArgumentException('Validate between 1 and 2000 recipients.');
+			$result = []; $seen = [];
+			foreach (array_values($recipients) as $index => $row) {
+				try {
+					if (!is_array($row)) throw new \InvalidArgumentException('Invalid recipient row.');
+					$r = $this->resolver->resolve(['name' => $row['name'] ?? '', 'email' => $row['email'] ?? '']);
+					if (isset($seen[$r['recipient_key']])) throw new \InvalidArgumentException('Duplicate recipient in this file.');
+					$seen[$r['recipient_key']] = true; unset($r['recipient_key']); $result[] = ['index' => $index, 'recipient' => $r, 'error' => null];
+				} catch (\InvalidArgumentException $e) { $result[] = ['index' => $index, 'recipient' => null, 'error' => $e->getMessage()]; }
+			}
+			return $result;
+		});
+	}
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]

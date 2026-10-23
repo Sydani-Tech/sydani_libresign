@@ -3,7 +3,7 @@
 <template>
 	<section class="campaign-page">
 		<header class="campaign-page__header"><div><h2>{{ t('libresign', 'Campaign') }}</h2><p>{{ t('libresign', 'Prepare once. Send individual copies. Track every recipient.') }}</p></div><div class="campaign-actions"><NcButton v-if="selected || creating" :disabled="busy" @click="back">{{ t('libresign', 'All campaigns') }}</NcButton><NcButton v-if="canCreate && !selected && !creating" variant="primary" @click="newCampaign">{{ t('libresign', 'New campaign') }}</NcButton><NcButton :disabled="busy" @click="refresh">{{ t('libresign', 'Refresh') }}</NcButton></div></header>
-		<p v-if="error" class="campaign-error" role="alert">{{ error }}</p><p v-if="notice" class="campaign-notice" role="status">{{ notice }}</p>
+		<div v-if="error" class="campaign-error campaign-error--banner" role="alert"><strong>{{ t('libresign', 'Please check the following') }}</strong><p>{{ error }}</p></div><p v-if="notice" class="campaign-notice" role="status">{{ notice }}</p>
 		<p v-if="!initialised" role="status">{{ t('libresign', 'Loading campaigns…') }}</p>
 		<p v-else-if="!canCreate" role="alert">{{ t('libresign', 'You do not have campaign access. An administrator can authorise your group in LibreSign settings.') }}</p>
 		<template v-else>
@@ -15,19 +15,23 @@
 				<div class="campaign-pagination"><NcButton :disabled="busy || page <= 1" @click="changePage(-1)">{{ t('libresign', 'Previous') }}</NcButton><span>{{ page }} / {{ Math.max(1, Math.ceil(total / 25)) }}</span><NcButton :disabled="busy || page * 25 >= total" @click="changePage(1)">{{ t('libresign', 'Next') }}</NcButton></div>
 			</template>
 			<template v-else>
-				<div v-if="selected" class="campaign-summary">
+				<div v-if="selected && selected.status !== 'draft'" class="campaign-summary">
 					<div><strong>{{ selected.summary.completed }}</strong><span>{{ t('libresign', 'Completed') }}</span></div><div><strong>{{ selected.summary.pending }}</strong><span>{{ t('libresign', 'Outstanding') }}</span></div><div><strong>{{ selected.summary.overdue }}</strong><span>{{ t('libresign', 'Overdue') }}</span></div><div><strong>{{ selected.summary.awaiting_counter }}</strong><span>{{ t('libresign', 'Awaiting countersignature') }}</span></div><div><strong>{{ selected.summary.failed }}</strong><span>{{ t('libresign', 'Failed requests') }}</span></div><div><strong>{{ selected.summary.completionRate }}%</strong><span>{{ t('libresign', 'Completion rate') }}</span></div>
 				</div>
 				<form v-if="creating || selected?.status === 'draft'" class="campaign-form" @submit.prevent="saveDraft">
-					<h3>{{ creating ? t('libresign', 'New campaign') : t('libresign', 'Campaign setup') }}</h3>
-					<div class="campaign-form__grid"><label>{{ t('libresign', 'Campaign name') }}<input v-model="draft.name" required maxlength="200" :disabled="busy"></label><label>{{ t('libresign', 'Document version') }}<input v-model="draft.version" required maxlength="80" :disabled="busy"></label><label>{{ t('libresign', 'Deadline (optional)') }}<input v-model="dueDate" type="date" :disabled="busy"></label><label>{{ t('libresign', 'PDF document') }}<input :key="fileInputKey" type="file" accept="application/pdf,.pdf" :disabled="busy" :required="creating" @change="upload"><small v-if="draft.sourceName">{{ draft.sourceName }}</small></label></div>
-					<label>{{ t('libresign', 'Message to signers') }}<textarea v-model="draft.message" maxlength="4000" rows="3" :disabled="busy" /></label>
-					<h3>{{ t('libresign', 'Recipients') }} · {{ draft.recipients.length }}</h3>
-					<CampaignRecipientPicker :disabled="busy" allow-groups @add="addRecipient" @add-many="addMany" />
+					<div class="campaign-form__title"><h3>{{ creating ? t('libresign', 'New campaign') : t('libresign', 'Campaign setup') }}</h3><span class="campaign-pill">{{ t('libresign', 'Draft · no invitations sent') }}</span></div>
+					<section class="campaign-step"><div class="campaign-step__heading"><span>1</span><div><h3>{{ t('libresign', 'Document & details') }}</h3><p>{{ t('libresign', 'Choose the document everyone will receive their own copy of.') }}</p></div></div>
+					<div class="campaign-setup-grid"><div><div class="campaign-form__grid"><label>{{ t('libresign', 'Campaign name') }}<input v-model="draft.name" required maxlength="200" :disabled="busy" :placeholder="t('libresign', 'e.g. Employee handbook acknowledgement')"></label><label>{{ t('libresign', 'Document version') }}<input v-model="draft.version" required maxlength="80" :disabled="busy"></label><label>{{ t('libresign', 'Deadline (optional)') }}<input v-model="dueDate" type="date" :disabled="busy"></label></div>
+					<label>{{ t('libresign', 'Message to signers') }}<textarea v-model="draft.message" maxlength="4000" rows="3" :disabled="busy" :placeholder="t('libresign', 'Tell recipients what they need to review and sign.')" /></label></div>
+					<div class="campaign-document"><div class="campaign-document__icon"><NcIconSvgWrapper :path="mdiFilePdfBox" :size="36" /></div><strong>{{ t('libresign', 'PDF document') }}</strong><p class="campaign-document__name">{{ draft.sourceName || t('libresign', 'Attach your document') }}</p><small>{{ readingPdf ? t('libresign', 'Reading PDF…') : draft.sourceName ? t('libresign', 'PDF attached · ready to place fields') : t('libresign', 'PDF only · up to 20 MB') }}</small><input :key="fileInputKey" ref="pdfInput" class="campaign-file-input" type="file" aria-label="PDF document" accept="application/pdf,.pdf" :disabled="busy || readingPdf" @change="upload"><NcButton :disabled="busy || readingPdf" @click="pdfInput?.click()">{{ draft.sourceName ? t('libresign', 'Replace PDF') : t('libresign', 'Choose PDF') }}</NcButton></div></div></section>
+					<section class="campaign-step"><div class="campaign-step__heading"><span>2</span><div><h3>{{ t('libresign', 'Recipients') }} <span class="campaign-count">{{ draft.recipients.length }}</span></h3><p>{{ t('libresign', 'Choose how to add people, then review the list below.') }}</p></div></div>
+					<CampaignRecipientPicker :disabled="busy" :existing="draft.recipients" :counter="draft.counter" allow-groups @add="addRecipient" @add-many="addMany" />
 					<div class="campaign-table-scroll"><table><thead><tr><th>{{ t('libresign', 'Recipient Name') }}</th><th>{{ t('libresign', 'Recipient Email') }}</th><th>{{ t('libresign', 'Type') }}</th><th>{{ t('libresign', 'Actions') }}</th></tr></thead><tbody><tr v-for="(recipient, index) in draft.recipients" :key="recipient.uid || recipient.email"><td>{{ recipient.name }}</td><td>{{ recipient.email }}</td><td>{{ recipient.kind === 'internal' ? t('libresign', 'Internal') : t('libresign', 'External') }}</td><td><NcButton :disabled="busy" @click="draft.recipients.splice(index, 1)">{{ t('libresign', 'Remove') }}</NcButton></td></tr><tr v-if="!draft.recipients.length"><td colspan="4">{{ t('libresign', 'No recipients selected yet.') }}</td></tr></tbody></table></div>
-					<details class="campaign-counter"><summary>{{ t('libresign', 'Optional countersignature for every copy') }}</summary><p>{{ t('libresign', 'Each recipient signs first. This person then countersigns that recipient’s copy; other recipients do not need to wait.') }}</p><div v-if="draft.counter"><strong>{{ draft.counter.name }}</strong><p>{{ draft.counter.email }}</p><NcButton :disabled="busy" @click="removeCounter">{{ t('libresign', 'Remove countersigner') }}</NcButton></div><CampaignRecipientPicker v-else :disabled="busy" @add="setCounter" /></details>
-					<div class="campaign-layout-note"><strong>{{ t('libresign', 'Reusable field layout') }}</strong><p>{{ draft.fields.length }} {{ t('libresign', 'fields placed. Place at least one signature for each signer role before sending. Replacing the PDF clears the previous layout.') }}</p><NcButton :disabled="busy || creating" @click="design">{{ t('libresign', 'Place signature and fillable fields') }}</NcButton></div>
-					<div class="campaign-actions"><NcButton type="submit" variant="primary" :disabled="busy || !draft.name.trim() || !draft.version.trim()">{{ creating ? t('libresign', 'Create draft') : t('libresign', 'Save draft') }}</NcButton><NcButton v-if="selected" :disabled="busy || !draft.recipients.length || !draft.fields.length" @click="prepareSend">{{ t('libresign', 'Review and send') }}</NcButton></div>
+					<p v-if="recipientError" class="campaign-section-error" role="alert"><strong>{{ recipientError }}</strong></p></section>
+					<section class="campaign-step"><div class="campaign-step__heading"><span>3</span><div><h3>{{ t('libresign', 'Countersignature') }}</h3><p>{{ t('libresign', 'Optional. Add an HR representative or approver who signs each copy after its recipient.') }}</p></div></div>
+					<details class="campaign-counter"><summary>{{ t('libresign', 'Optional countersignature for every copy') }}</summary><p>{{ t('libresign', 'Each recipient signs first. This person then countersigns that recipient’s copy; other recipients do not need to wait.') }}</p><div v-if="draft.counter" class="campaign-counter__selected"><strong>{{ draft.counter.name }}</strong><p>{{ draft.counter.email }}</p><NcButton :disabled="busy" @click="removeCounter">{{ t('libresign', 'Remove countersigner') }}</NcButton></div><CampaignRecipientPicker v-else :disabled="busy" @add="setCounter" /></details><p v-if="counterError" class="campaign-section-error" role="alert"><strong>{{ counterError }}</strong></p></section>
+					<section class="campaign-step campaign-layout-note"><div class="campaign-step__heading"><span>4</span><div><h3>{{ t('libresign', 'Reusable field layout') }}</h3><p>{{ t('libresign', 'Place fields once. The same layout is applied to every recipient’s independent copy.') }}</p></div></div><div class="campaign-layout-note__body"><div><strong>{{ draft.fields.length }} {{ t('libresign', 'fields placed') }}</strong><p>{{ t('libresign', 'Include a signature for each signer role. Replacing the PDF clears the layout.') }}</p><small v-if="!draft.pdf && !selected">{{ t('libresign', 'Attach a PDF above to get started.') }}</small></div><NcButton variant="primary" :disabled="busy || readingPdf || (!draft.pdf && !selected)" @click="design">{{ t('libresign', 'Place signature and fillable fields') }}</NcButton></div></section>
+					<div class="campaign-actions campaign-form__footer"><p>{{ t('libresign', 'Saving a draft does not send invitations. Review the campaign before sending.') }}</p><NcButton type="submit" :disabled="busy || readingPdf || !draft.name.trim() || !draft.version.trim()">{{ creating ? t('libresign', 'Create draft') : t('libresign', 'Save draft') }}</NcButton><NcButton v-if="selected" variant="primary" :disabled="busy || readingPdf || !draft.recipients.length || !draft.fields.length" @click="prepareSend">{{ t('libresign', 'Review and send') }}</NcButton></div>
 				</form>
 				<section v-if="selected && selected.status !== 'draft'" class="campaign-details">
 					<h3>{{ selected.name }} — {{ t('libresign', 'Version') }} {{ selected.version }}</h3><p>{{ campaignState(selected) }} · {{ t('libresign', 'Date Requested') }}: {{ campaignDate(selected.requestedAt) }} · {{ t('libresign', 'Deadline') }}: {{ campaignDate(selected.dueAt) }}</p>
@@ -49,6 +53,9 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
+import { showError } from '@nextcloud/dialogs'
+import { mdiFilePdfBox } from '@mdi/js'
+import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import CampaignDesigner from '../components/Request/CampaignDesigner.vue'
@@ -56,6 +63,9 @@ import CampaignRecipientPicker from '../components/Request/CampaignRecipientPick
 import { campaignGet, campaignPost, campaignPut, campaignUrl, campaignDate, campaignError, mergeCampaignRecipients, type Campaign, type CampaignDraft, type CampaignField, type CampaignRecipient } from '../services/campaigns'
 
 const initialised = ref(false); const canCreate = ref(false); const busy = ref(false); const error = ref(''); const notice = ref('')
+const recipientError = ref(''); const counterError = ref(''); const readingPdf = ref(false); const pdfInput = ref<HTMLInputElement | null>(null)
+let uploadGeneration = 0
+function reportError(message: string) { error.value = message; showError(message) }
 const campaigns = ref<Campaign[]>([]); const total = ref(0); const page = ref(1)
 const selected = ref<Campaign | null>(null); const creating = ref(false); const designer = ref(false); const confirmSend = ref(false)
 const dueDate = ref(''); const fileInputKey = ref(0); const recipientName = ref(''); const recipientEmail = ref(''); const recipientStatus = ref(''); const cancelReason = ref('')
@@ -78,31 +88,34 @@ function setSelected(c: Campaign) {
 async function perform(action: () => Promise<void>) {
 	if (busy.value) return false
 	busy.value = true; error.value = ''; notice.value = ''
-	try { await action(); return true } catch (e) { error.value = campaignError(e); return false } finally { busy.value = false }
+	try { await action(); return true } catch (e) { reportError(campaignError(e)); return false } finally { busy.value = false }
 }
 async function loadList() { const data = await campaignGet<{data: Campaign[], total: number}>('campaigns', {page: page.value}); campaigns.value = data.data; total.value = data.total }
 async function open(id: number) { await perform(async () => { setSelected(await campaignGet<Campaign>(`campaigns/${id}`)); recipientName.value = ''; recipientEmail.value = ''; recipientStatus.value = '' }) }
 async function refresh() { await perform(async () => { if (selected.value && selected.value.status !== 'draft') selected.value = await campaignGet<Campaign>(`campaigns/${selected.value.id}`); else if (!selected.value && !creating.value) await loadList() }) }
-function newCampaign() { creating.value = true; selected.value = null; Object.assign(draft, blank()); dueDate.value = ''; error.value = ''; notice.value = ''; fileInputKey.value++ }
+function newCampaign() { uploadGeneration++; readingPdf.value = false; creating.value = true; selected.value = null; Object.assign(draft, blank()); dueDate.value = ''; error.value = ''; recipientError.value = ''; counterError.value = ''; notice.value = ''; fileInputKey.value++ }
 async function back() { selected.value = null; creating.value = false; designer.value = false; await perform(loadList) }
 async function changePage(delta: number) { page.value += delta; await perform(loadList) }
 function addMany(rows: CampaignRecipient[]) {
 	const merged = mergeCampaignRecipients(draft.recipients, rows)
-	if (merged.recipients.length > 2000) { error.value = t('libresign', 'A campaign supports up to 2000 recipients.'); return }
-	if (draft.counter && merged.recipients.some(row => row.email.toLowerCase() === draft.counter?.email.toLowerCase())) { error.value = t('libresign', 'The countersigner cannot also be a campaign recipient.'); return }
-	draft.recipients = merged.recipients; notice.value = merged.skipped ? t('libresign', '{count} duplicate recipients skipped.', {count: merged.skipped}) : ''; error.value = ''
+	if (merged.recipients.length > 2000) { recipientError.value = t('libresign', 'A campaign supports up to 2000 recipients.'); reportError(recipientError.value); return }
+	if (draft.counter && merged.recipients.some(row => row.email.toLowerCase() === draft.counter?.email.toLowerCase())) { recipientError.value = t('libresign', 'The countersigner cannot also be a campaign recipient. Choose a different recipient or remove the countersigner.'); reportError(recipientError.value); return }
+	draft.recipients = merged.recipients; notice.value = merged.skipped ? t('libresign', '{count} duplicate recipients skipped.', {count: merged.skipped}) : ''; error.value = ''; recipientError.value = ''
 }
 function addRecipient(row: CampaignRecipient) { addMany([row]) }
-function setCounter(row: CampaignRecipient) { if (draft.recipients.some(r => r.email.toLowerCase() === row.email.toLowerCase())) { error.value = t('libresign', 'The countersigner cannot also be a campaign recipient.'); return } draft.counter = row }
-function removeCounter() { draft.counter = null; draft.fields = draft.fields.filter(field => field.role !== 'counter') }
+function setCounter(row: CampaignRecipient) { if (draft.recipients.some(r => r.email.toLowerCase() === row.email.toLowerCase())) { counterError.value = t('libresign', 'The countersigner cannot also be a campaign recipient. Choose someone who is not in the recipient list.'); reportError(counterError.value); return } draft.counter = row; counterError.value = ''; error.value = '' }
+function removeCounter() { draft.counter = null; draft.fields = draft.fields.filter(field => field.role !== 'counter'); counterError.value = ''; recipientError.value = ''; error.value = '' }
 async function upload(event: Event) {
 	const file = (event.target as HTMLInputElement).files?.[0]
 	if (!file) return
-	if (file.size > 20 * 1024 * 1024 || !file.name.toLowerCase().endsWith('.pdf')) { (event.target as HTMLInputElement).value = ''; error.value = t('libresign', 'Choose a PDF no larger than 20 MB. The previous saved document has not been changed.'); return }
-	try { draft.pdf = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file) }); draft.sourceName = file.name; draft.fields = []; error.value = '' }
-	catch { error.value = t('libresign', 'Unable to read the selected PDF.') }
+	if (file.size > 20 * 1024 * 1024 || !file.name.toLowerCase().endsWith('.pdf')) { (event.target as HTMLInputElement).value = ''; reportError(t('libresign', 'Choose a PDF no larger than 20 MB. The previous saved document has not been changed.')); return }
+	const current = ++uploadGeneration; readingPdf.value = true
+	try { const content = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file) }); if (current !== uploadGeneration) return; draft.pdf = content; draft.sourceName = file.name; draft.fields = []; error.value = '' }
+	catch { if (current === uploadGeneration) reportError(t('libresign', 'Unable to read the selected PDF.')) } finally { if (current === uploadGeneration) readingPdf.value = false }
 }
 async function persistDraft() {
+	if (readingPdf.value) throw new Error('PDF still loading')
+	if (!draft.name.trim() || !draft.version.trim()) { throw {response:{data:{message:t('libresign', 'Enter a campaign name and document version before placing fields or saving.')}}} }
 	draft.dueAt = dueDate.value ? Math.floor(new Date(dueDate.value + 'T23:59:59').getTime() / 1000) : null
 	const payload = {...draft, recipients: draft.recipients.map(row => ({name: row.name, email: row.email, uid: row.uid ?? null}))}
 	const c = selected.value ? await campaignPut<Campaign>(`campaigns/${selected.value.id}`, {revision: selected.value.revision, campaign: payload}) : await campaignPost<Campaign>('campaigns', {campaign: payload})
@@ -133,15 +146,17 @@ onMounted(async () => {
 		catch (e) { if (!disposed) error.value = campaignError(e) } finally { ticking = false }
 	}, 10000)
 })
-onBeforeUnmount(() => { disposed = true; clearInterval(timer) })
+onBeforeUnmount(() => { disposed = true; uploadGeneration++; clearInterval(timer) })
 </script>
 <style scoped lang="scss">
-.campaign-page { padding: 24px; width: 100%; box-sizing: border-box; overflow-y: auto; }
+.campaign-page { padding: 32px clamp(16px,3vw,48px); width: 100%; box-sizing: border-box; overflow-y: auto; background: var(--color-main-background); }
 .campaign-page__header { display: flex; justify-content: space-between; gap: 20px; align-items: start; margin-bottom: 24px; flex-wrap: wrap; }
 h2 { font-size: 26px; margin-bottom: 8px; } h3 { font-size: 20px; margin-block: 20px 12px; }
 .campaign-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .campaign-actions a { color: var(--color-primary-element); text-decoration: underline; padding: 8px; }
-.campaign-error { color: var(--color-error); overflow-wrap: anywhere; }
+.campaign-error { color: var(--color-main-text); overflow-wrap: anywhere; }
+.campaign-error--banner, .campaign-section-error { padding:16px 18px; border:1px solid var(--color-border-maxcontrast); border-inline-start:5px solid var(--color-error); border-radius:10px; background:var(--color-background-dark); margin-block:16px; font-size:15px; line-height:1.5; }
+.campaign-error--banner strong { display:block; font-size:16px; margin-bottom:4px; }
 .campaign-notice { padding: 12px; border-inline-start: 4px solid var(--color-primary-element); background: var(--color-primary-element-light); margin-bottom: 16px; }
 .campaign-table-scroll { overflow-x: auto; margin-block: 16px; }
 table { width: 100%; border-collapse: collapse; } th, td { padding: 12px; border-bottom: 1px solid var(--color-border); text-align: start; vertical-align: top; } th { background: var(--color-background-dark); white-space: nowrap; }
@@ -152,13 +167,27 @@ progress { width: 140px; accent-color: var(--color-primary-element); }
 .campaign-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 12px; margin-block: 20px; }
 .campaign-summary > div { padding: 18px; border: 1px solid var(--color-border); border-radius: var(--border-radius-large); background: var(--color-background-dark); }
 .campaign-summary strong { display: block; font-size: 28px; margin-bottom: 4px; color: var(--color-primary-element); }
-.campaign-form { max-width: 1400px; }
-.campaign-form__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-block: 16px; }
+.campaign-form { max-width: 1440px; }
+.campaign-form__title { display:flex; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:20px; }.campaign-form__title h3 { margin:0; font-size:22px; }
+.campaign-pill { border:1px solid var(--color-border); border-radius:24px; padding:6px 12px; font-size:13px; color:var(--color-text-maxcontrast); background:var(--color-background-hover); }
+.campaign-step { border:1px solid var(--color-border); border-radius:16px; padding:24px; margin-bottom:20px; background:var(--color-main-background); box-shadow:0 3px 12px rgb(0 0 0 / 3%); }
+.campaign-step__heading { display:flex; gap:14px; align-items:flex-start; margin-bottom:22px; }.campaign-step__heading > span { display:flex; align-items:center; justify-content:center; width:34px; height:34px; flex:0 0 34px; border-radius:50%; background:var(--color-primary-element-light); color:var(--color-main-text); font-weight:700; }
+.campaign-step__heading h3 { margin:0 0 5px; font-size:19px; font-weight:650; }.campaign-step__heading p { color:var(--color-text-maxcontrast); line-height:1.5; }
+.campaign-setup-grid { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:28px; align-items:stretch; }
+.campaign-document { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:22px; border:2px dashed var(--color-border-maxcontrast); border-radius:12px; background:var(--color-background-hover); text-align:center; position:relative; }
+.campaign-document__icon { color:var(--color-primary-element); margin-bottom:4px; }.campaign-document__name { overflow-wrap:anywhere; word-break:break-word; max-width:100%; font-weight:550; }.campaign-document small { margin:0 0 8px; }
+.campaign-file-input { position:absolute; width:1px !important; height:1px; min-height:0; opacity:0; pointer-events:none; }
+.campaign-count { display:inline-flex; align-items:center; justify-content:center; min-width:26px; padding:2px 8px; border-radius:20px; background:var(--color-primary-element-light); font-size:14px; margin-inline-start:8px; }
+.campaign-layout-note__body { display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }.campaign-layout-note__body strong { font-size:18px; }.campaign-layout-note__body p { color:var(--color-text-maxcontrast); margin-top:6px; }
+.campaign-form__footer { padding:8px 0 20px; justify-content:flex-end; }.campaign-form__footer > p { margin-inline-end:auto; max-width:600px; color:var(--color-text-maxcontrast); }
+.campaign-counter__selected { padding:16px; background:var(--color-background-hover); border-radius:10px; margin-top:14px; }
+.campaign-form__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-block: 0 16px; }
 label { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-input, select, textarea { width: 100%; box-sizing: border-box; min-height: 44px; margin: 0; }
+input, select, textarea { width: 100%; box-sizing: border-box; min-height: 46px; margin: 0; border-radius:8px; }label { font-weight:550; }textarea { resize:vertical; }
 summary { cursor: pointer; font-weight: bold; }
-.campaign-counter, .campaign-layout-note, .campaign-cancel { border: 1px solid var(--color-border); padding: 16px; margin-block: 20px; border-radius: var(--border-radius-large); }
+.campaign-counter { margin:0; }.campaign-counter > p { margin-block:14px; color:var(--color-text-maxcontrast); }.campaign-cancel { border:1px solid var(--color-border); padding:16px; margin-block:20px; border-radius:12px; }
 .campaign-history { margin-top: 28px; } .campaign-history li { padding: 10px 0; border-bottom: 1px solid var(--color-border); }
 .campaign-recipient-filters { margin-top: 24px; }
-@media (max-width: 767px) { .campaign-page { padding: 12px; } input, select, textarea { font-size: 16px; } .campaign-summary { grid-template-columns: repeat(2, 1fr); } .campaign-page__header { gap: 12px; } }
+@media(max-width:1100px){.campaign-setup-grid{grid-template-columns:1fr;}.campaign-document{min-height:180px;}}
+@media (max-width: 767px) { .campaign-page { padding: 16px 10px; }.campaign-step{padding:16px 12px;border-radius:12px;}.campaign-form__grid{grid-template-columns:1fr;gap:10px;}.campaign-step__heading{gap:10px;margin-bottom:16px;}.campaign-step__heading h3{font-size:18px;}.campaign-form__footer{justify-content:stretch;}.campaign-form__footer > p{flex-basis:100%;}input, select, textarea { font-size: 16px; } .campaign-summary { grid-template-columns: repeat(2, 1fr); } .campaign-page__header { gap: 12px; } }
 </style>

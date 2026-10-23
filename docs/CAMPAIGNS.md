@@ -5,6 +5,44 @@ the real signing, notification and permissions acceptance checks have passed.
 
 ## Workflow
 
+### Campaign setup and recipient import
+
+Setup is organised into Document & details, Recipients, optional Countersignature
+and Reusable field layout. Attaching a PDF enables placement immediately; opening
+the editor saves the draft first, without sending invitations. A countersigner
+conflict produces a Nextcloud error popup and a bold, persistent section warning.
+
+Recipient entry offers Add Internal Users, Add from a Group, Add an External User,
+and Add from an Excel File. Imports accept `.xlsx` and `.csv` up to 5 MB and 2000
+recipients, with automatic name/email column detection, manual column selection,
+optional headings, worksheet selection and an editable preview. Names/emails can
+be corrected and rows removed in the UI without re-uploading. Every edit or row
+removal invalidates previous account validation. Invalid emails, missing or
+oversized names, duplicate/existing recipients, countersigner conflicts, disabled
+accounts and ambiguous account matches are flagged. Valid rows are added only
+after an explicit validation and Add confirmation. Import never sends invitations.
+Format validation cannot establish that a mailbox exists or is deliverable.
+
+Parsing is value-only, with compressed expansion, row, column and cell limits.
+Workbook formulas are not executed, external relationships are ignored, and XML
+entities/DTDs are rejected. `.xls` and password-protected workbooks are unsupported;
+save these as a normal `.xlsx` or UTF-8 CSV first.
+
+### Personal Dashboard
+
+The default signed-in landing page is Dashboard (`/f/dashboard`), with four
+paginated views: Awaiting my signature, Waiting for my turn, Signed by me, and
+Sent · awaiting completion. Individual and campaign requests share the inbox.
+Ready documents link directly by their exact document UUID to review/signing;
+future sequential participants are not offered a premature signing action.
+Cancelled/exempt campaign copies are excluded from outstanding tasks; actual
+signed history remains visible. Only the current account's assignments and sent
+requests are included, even for administrators. Campaign management and global
+archive shortcuts retain their existing permissions. External email-only signers
+continue to use their individual invitation links rather than an account dashboard.
+
+### Creating and managing a campaign
+
 1. An administrator selects Campaign creator groups in LibreSign settings.
    Administrators are always allowed. This is separate from ordinary request
    permissions. A creator manages their own campaigns; administrators manage all.
@@ -66,6 +104,9 @@ management endpoints. Signing recipients use the existing LibreSign signer UI.
 - `GET campaigns/{id}/recipients/{recipientId}/file`
 - `GET campaign/users|groups`, `GET campaign/groups/{groupId}/users`
 - `POST campaign/resolve`
+- `POST campaign/import` (bounded `.xlsx`/`.csv` parse preview only)
+- `POST campaign/resolve-import` (per-row account/email validation only)
+- Signed-in personal inbox: `GET dashboard?view=ready|waiting|signed|sent&page=1`
 - Administrator only: `GET/POST campaign-settings`; permission changes also
   require Nextcloud password confirmation and CSRF protection.
 

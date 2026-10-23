@@ -34,12 +34,13 @@ export function campaignError(error: unknown): string {
 }
 export function mergeCampaignRecipients(existing: CampaignRecipient[], added: CampaignRecipient[]) {
 	const result = [...existing]
-	const keys = new Set(existing.map(row => row.uid ? 'account:' + row.uid : 'email:' + row.email.trim().toLowerCase()))
+	const recipientKeys = (row: CampaignRecipient) => ['email:' + row.email.trim().toLowerCase(), ...(row.uid ? ['account:' + row.uid] : [])]
+	const keys = new Set(existing.flatMap(recipientKeys))
 	let skipped = 0
 	for (const row of added) {
-		const key = row.uid ? 'account:' + row.uid : 'email:' + row.email.trim().toLowerCase()
-		if (keys.has(key)) { skipped++; continue }
-		keys.add(key)
+		const rowKeys = recipientKeys(row)
+		if (rowKeys.some(key => keys.has(key))) { skipped++; continue }
+		rowKeys.forEach(key => keys.add(key))
 		result.push(row)
 	}
 	return { recipients: result, skipped }
