@@ -794,6 +794,7 @@ class FileService {
 
 	public function delete(int $fileId, bool $deleteFile = true): void {
 		$file = $this->fileMapper->getById($fileId);
+		CampaignPolicy::assertEditable($file);
 		// Preflight the whole envelope before removing any child or signing data.
 		$this->documentArchive->assertCanDelete($file);
 

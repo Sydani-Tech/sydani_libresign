@@ -102,6 +102,11 @@ const routes: RouteRecordRaw[] = [
 
 	// internal pages
 	{
+		path: '/f/campaign',
+		name: 'campaign',
+		component: () => import('../views/Campaign.vue'),
+	},
+	{
 		path: '/f/archive',
 		name: 'organisationalArchive',
 		component: () => import('../views/OrganisationalArchive.vue'),

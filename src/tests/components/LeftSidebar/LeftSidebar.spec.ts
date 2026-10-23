@@ -10,6 +10,7 @@ import LeftSidebar from '../../../components/LeftSidebar/LeftSidebar.vue'
 const loadStateMock = vi.fn()
 const getCurrentUserMock = vi.fn()
 const selectFileMock = vi.fn()
+vi.mock('../../../services/campaigns', () => ({ campaignGet: vi.fn().mockResolvedValue({canCreate: false}) }))
 
 vi.mock('@nextcloud/initial-state', () => ({
 	loadState: (...args: unknown[]) => loadStateMock(...args),
@@ -73,7 +74,7 @@ describe('LeftSidebar', () => {
 		})
 
 		const icons = wrapper.findAll('.menu-icon')
-		expect(icons).toHaveLength(4)
+		expect(icons).toHaveLength(5)
 		for (const icon of icons) {
 			expect(icon.attributes('data-path')).toBeTruthy()
 		}

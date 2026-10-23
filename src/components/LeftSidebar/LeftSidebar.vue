@@ -15,6 +15,9 @@
 					<NcIconSvgWrapper :path="mdiFileSign" :size="20" />
 				</template>
 			</NcAppNavigationItem>
+			<NcAppNavigationItem v-if="canCreateCampaign" id="campaign" :to="{name: 'campaign'}" :name="t('libresign', 'Campaign')" @click="unselectFile">
+				<template #icon><NcIconSvgWrapper :path="mdiFileSign" :size="20" /></template>
+			</NcAppNavigationItem>
 			<NcAppNavigationItem id="fileslist"
 				:to="{ name: 'fileslist' }"
 				:name="t('libresign', 'Files')"
@@ -69,7 +72,7 @@
 
 <script setup lang="ts">
 import { t } from '@nextcloud/l10n'
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { getCurrentInstance } from 'vue'
 import {
 	mdiAccountCheck,
@@ -91,12 +94,17 @@ import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import Settings from '../Settings/Settings.vue'
 
 import { useFilesStore } from '../../store/files.js'
+import { campaignGet } from '../../services/campaigns'
 
 defineOptions({
 	name: 'LeftSidebar',
 })
 
 const filesStore = useFilesStore()
+const canCreateCampaign = ref(false)
+onMounted(async () => {
+	try { canCreateCampaign.value = (await campaignGet<{canCreate: boolean}>('campaign/access')).canCreate } catch { canCreateCampaign.value = false }
+})
 const canRequestSign = loadState('libresign', 'can_request_sign', false)
 const config = loadState('libresign', 'config', {
 	identificationDocumentsFlow: false,

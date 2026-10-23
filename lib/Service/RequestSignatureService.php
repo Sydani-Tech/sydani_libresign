@@ -317,6 +317,7 @@ class RequestSignatureService {
 	public function saveFile(array $data): FileEntity {
 		if (!empty($data['uuid'])) {
 			$file = $this->fileMapper->getByUuid($data['uuid']);
+			CampaignPolicy::assertEditable($file);
 			$this->updateSignatureFlowIfAllowed($file, $data);
 			if (!empty($data['name'])) {
 				$file->setName($data['name']);
@@ -333,9 +334,13 @@ class RequestSignatureService {
 		if (!is_null($fileId)) {
 			try {
 				$file = $this->fileMapper->getByNodeId($fileId);
+			} catch (\Throwable) {
+				$file = null;
+			}
+			if ($file !== null) {
+				CampaignPolicy::assertEditable($file);
 				$this->updateSignatureFlowIfAllowed($file, $data);
 				return $this->fileStatusService->updateFileStatusIfUpgrade($file, $data['status'] ?? 0);
-			} catch (\Throwable) {
 			}
 		}
 
@@ -586,6 +591,7 @@ class RequestSignatureService {
 
 	public function unassociateToUser(int $fileId, int $signRequestId): void {
 		$file = $this->fileMapper->getById($fileId);
+		CampaignPolicy::assertEditable($file);
 		$this->documentArchive->assertCanDelete($file);
 		$signRequest = $this->signRequestMapper->getByFileIdAndSignRequestId($fileId, $signRequestId);
 		$deletedOrder = $signRequest->getSigningOrder();
@@ -683,6 +689,7 @@ class RequestSignatureService {
 		} else {
 			throw new \Exception($this->l10n->t('Please provide either UUID or File object'));
 		}
+		CampaignPolicy::assertEditable($fileData);
 		$this->documentArchive->assertCanDelete($fileData);
 		foreach ($signatures as $signRequest) {
 			$this->identifyMethod->deleteBySignRequestId($signRequest->getId());

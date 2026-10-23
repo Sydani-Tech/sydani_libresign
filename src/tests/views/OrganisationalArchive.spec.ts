@@ -51,14 +51,15 @@ describe('Organisational archive', () => {
 		const selects = wrapper.findAll('select')
 		await selects[0].setValue('alice')
 		await selects[2].setValue('requested')
-		await wrapper.findAll('input[type="search"]')[1].setValue('bob@example.test')
+		await wrapper.findAll('input[type="search"]')[1].setValue('Bob')
+		await wrapper.findAll('input[type="search"]')[2].setValue('bob@example.test')
 		const dates = wrapper.findAll('input[type="date"]')
 		await dates[0].setValue('2026-10-01')
 		await dates[1].setValue('2026-10-15')
 		await wrapper.find('form').trigger('submit')
 		await flushPromises()
 		expect(axios.get).toHaveBeenLastCalledWith('/apps/libresign/archive/list', expect.objectContaining({ params: expect.objectContaining({
-			sender: 'alice', recipient: 'bob@example.test', dateBy: 'requested',
+			sender: 'alice', recipientName: 'Bob', recipientEmail: 'bob@example.test', dateBy: 'requested',
 			from: Math.floor(new Date('2026-10-01T00:00:00').getTime() / 1000),
 			to: Math.floor(new Date('2026-10-15T23:59:59').getTime() / 1000),
 		}) }))

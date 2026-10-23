@@ -40,14 +40,14 @@ class ArchiveController extends Controller {
 
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/archive/list')]
-	public function index(int $page = 1, int $length = 25, string $name = '', string $sender = '', string $recipient = '', string $status = 'completed', string $dateBy = 'completed', ?int $from = null, ?int $to = null, string $sortBy = 'completed', string $direction = 'desc'): DataResponse {
+	public function index(int $page = 1, int $length = 25, string $name = '', string $sender = '', string $recipient = '', string $status = 'completed', string $dateBy = 'completed', ?int $from = null, ?int $to = null, string $sortBy = 'completed', string $direction = 'desc', string $recipientName = '', string $recipientEmail = ''): DataResponse {
 		if (!$this->isAdmin()) {
 			return new DataResponse(['message' => 'Administrator access required'], 403);
 		}
-		if (($from !== null && $to !== null && $from > $to) || strlen($name) > 200 || strlen($recipient) > 200) {
+		if (($from !== null && $to !== null && $from > $to) || strlen($name) > 200 || strlen($recipient) > 200 || strlen($recipientName) > 200 || strlen($recipientEmail) > 200) {
 			return new DataResponse(['message' => 'Invalid archive filter'], 400);
 		}
-		return new DataResponse($this->archiveQuery->list(compact('name', 'sender', 'recipient', 'status', 'dateBy', 'from', 'to', 'sortBy', 'direction'), $page, $length), 200, ['Cache-Control' => 'private, no-store']);
+		return new DataResponse($this->archiveQuery->list(compact('name', 'sender', 'recipient', 'recipientName', 'recipientEmail', 'status', 'dateBy', 'from', 'to', 'sortBy', 'direction'), $page, $length), 200, ['Cache-Control' => 'private, no-store']);
 	}
 
 	#[NoCSRFRequired]

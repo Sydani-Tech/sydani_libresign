@@ -146,6 +146,10 @@ abstract class AbstractIdentifyMethod implements IIdentifyMethod {
 		}
 		$signRequest = $this->identifyService->getSignRequestMapper()->getById($this->getEntity()->getSignRequestId());
 		$libresignFile = $this->identifyService->getFileMapper()->getById($signRequest->getFileId());
+		if (!empty(($libresignFile->getMetadata() ?? [])['campaign'])
+			&& !\OCP\Server::get(\OCA\Libresign\Service\CampaignPolicy::class)->canSign($libresignFile)) {
+			return false;
+		}
 		$this->identifyService->getEventDispatcher()->dispatchTyped(new SendSignNotificationEvent(
 			$signRequest,
 			$libresignFile,
@@ -178,6 +182,11 @@ abstract class AbstractIdentifyMethod implements IIdentifyMethod {
 	protected function throwIfFileNotFound(): void {
 		$signRequest = $this->identifyService->getSignRequestMapper()->getById($this->getEntity()->getSignRequestId());
 		$fileEntity = $this->identifyService->getFileMapper()->getById($signRequest->getFileId());
+		if (!empty(($fileEntity->getMetadata() ?? [])['campaign'])) {
+			\OCP\Server::get(\OCA\Libresign\Service\CampaignPolicy::class)->assertCanSign($fileEntity);
+			\OCP\Server::get(\OCA\Libresign\Service\DocumentArchiveService::class)->resolve($fileEntity);
+			return;
+		}
 
 		$filesToCheck = [];
 

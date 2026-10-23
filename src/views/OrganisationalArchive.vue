@@ -17,7 +17,8 @@
 							<option v-for="sender in senders" :key="sender.id" :value="sender.id">{{ sender.name }}</option>
 						</select>
 					</label>
-					<label>{{ t('libresign', 'Recipient name, email or username') }}<input v-model="filters.recipient" type="search" maxlength="200"></label>
+					<label>{{ t('libresign', 'Recipient Name') }}<input v-model="filters.recipientName" type="search" maxlength="200"></label>
+					<label>{{ t('libresign', 'Recipient Email') }}<input v-model="filters.recipientEmail" type="search" maxlength="200"></label>
 					<label>{{ t('libresign', 'Status') }}
 						<select v-model="filters.status">
 							<option value="completed">{{ t('libresign', 'Completed') }}</option>
@@ -121,7 +122,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 
 type Recipient = { name: string, order: number, statusText: string, signedAt: string | null, ipAddress: string | null, identifiers: Array<{type: string, value: string}>, fields: Array<{label: string, type: string, value: unknown}> }
 type ArchivedDocument = { id: number, uuid: string, name: string, sender: {id: string, name: string}, recipients: Recipient[], requestedAt: string | null, completedAt: string | null, statusText: string, sourceDeleted: boolean, hash: string }
-const defaults = { name: '', sender: '', recipient: '', status: 'completed', dateBy: 'completed', sortBy: 'completed', direction: 'desc' }
+const defaults = { name: '', sender: '', recipientName: '', recipientEmail: '', status: 'completed', dateBy: 'completed', sortBy: 'completed', direction: 'desc' }
 const filters = reactive({ ...defaults })
 const isAdmin = computed(() => getCurrentUser()?.isAdmin ?? false)
 const documents = ref<ArchivedDocument[]>([])
