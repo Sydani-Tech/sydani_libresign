@@ -54,7 +54,7 @@ class CampaignDefinition {
 				|| $c['left'] + $c['width'] > (float)$size['w'] + 0.01 || $c['top'] + $c['height'] > (float)$size['h'] + 0.01) {
 				throw new \InvalidArgumentException('Every field must fit inside its PDF page.');
 			}
-			$metadata = SigningFieldService::definition($field['metadata'] ?? []);
+			$metadata = SigningFieldService::definition($field['metadata'] ?? [], $field['type']);
 			$result[] = ['role' => $field['role'], 'type' => $field['type'], 'coordinates' => array_intersect_key($c, array_flip(['page', 'left', 'top', 'width', 'height'])), 'metadata' => $metadata];
 			if ($field['type'] === 'signature') $signatures[$field['role']] = true;
 		}

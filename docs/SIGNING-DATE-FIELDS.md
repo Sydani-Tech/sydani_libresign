@@ -1,0 +1,9 @@
+# Automatic signing-date fields
+
+The Date field toolbar offers **Use signing date**, independently of Required. When enabled, the signer sees a read-only notice. Manual dates are unchanged. This applies to ordinary requests, campaign recipients/countersigners, internal and email signers.
+
+Definitions store useSigningDate (boolean) and signingDateTimezone (IANA timezone, default Africa/Lagos for Sydani). The timezone is frozen in each field and appears in the signing sidebar; old definitions remain manual. Copying/reopening a layout preserves this metadata. Disabling the option returns to normal manual-date validation. No schema migration or modification of existing signed PDFs is required.
+
+The request validator accepts automatic fields without a submitted date. During actual signing, each worker/file resolves its own server instant; browser dates are ignored. The same resolved value is used in the PDF and signing_fields audit metadata. The existing PDF formatter displays dates such as 26th Oct, 2026. After signing, the worker verifies the resolved date equals the embedded signature timestamp in the field timezone. A midnight-boundary mismatch aborts before recording completion and asks the user to retry; it never marks a mismatched date complete.
+
+Tests: tools/signing-date/test-policy.php is read-only on staging (15 rules including midnight/timezone conversion, forged input and legacy dates). tools/signing-date/test-staging.php --allow-staging-mutations is an explicit www-data-only synthetic engine test: independent campaign copies, two sequential roles, each with an enforced date and a manual historical date; forged client dates are ignored, first signer evidence is preserved, PDF hashes/archives and existing access/cancellation rules remain checked. Test email delivery is suppressed; test accounts are disabled on exit.

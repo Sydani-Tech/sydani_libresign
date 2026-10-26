@@ -8,7 +8,7 @@ export type CampaignRecipient = {
 	fileId?: number | null, fileUuid?: string | null, requestedAt?: string | null, completedAt?: string | null,
 	recipientSignedAt?: string | null, error?: string | null, exemptionReason?: string | null,
 }
-export type CampaignField = { role: 'recipient' | 'counter', type: 'signature' | 'text' | 'date' | 'checkbox', coordinates: {page: number, left: number, top: number, width: number, height: number}, metadata: {label: string, required: boolean} }
+export type CampaignField = { role: 'recipient' | 'counter', type: 'signature' | 'text' | 'date' | 'checkbox', coordinates: {page: number, left: number, top: number, width: number, height: number}, metadata: {label: string, required: boolean, useSigningDate?: boolean, signingDateTimezone?: string} }
 export type CampaignDraft = { name: string, version: string, message: string, dueAt: number | null, recipients: CampaignRecipient[], counter: CampaignRecipient | null, fields: CampaignField[], pdf?: string, sourceName: string }
 export type Campaign = CampaignDraft & {
 	id: number, revision: number, status: 'draft' | 'active' | 'cancelled', sourceHash: string,

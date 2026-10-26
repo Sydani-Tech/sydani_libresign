@@ -20,7 +20,8 @@
 			<label v-for="field in signingFields" :key="field.elementId" class="signing-fields-summary__field"
 				:class="{ 'signing-fields-summary__field--checkbox': field.type === 'checkbox' }">
 				<span>{{ field.metadata?.label || field.type }}{{ field.metadata?.required !== false ? ' *' : '' }}</span>
-				<input v-if="field.type === 'checkbox'" v-model="signingFieldsStore.values[field.elementId]" type="checkbox"
+				<span v-if="usesSigningDate(field)" class="signing-fields-summary__automatic" role="note">{{ t('libresign', 'Automatically set when you sign ({timezone}).', { timezone: field.metadata?.signingDateTimezone || 'Africa/Lagos' }) }}</span>
+				<input v-else-if="field.type === 'checkbox'" v-model="signingFieldsStore.values[field.elementId]" type="checkbox"
 					:data-signing-input="field.elementId" :required="field.metadata?.required !== false"
 					:aria-invalid="getSigningFieldIssue(field, signingFieldsStore.values[field.elementId]) !== null">
 				<input v-else v-model="signingFieldsStore.values[field.elementId]" :type="field.type === 'date' ? 'date' : 'text'" maxlength="500"
@@ -267,7 +268,7 @@ import type {
 	SignatureMethodConfig,
 	SubmitSignaturePayload,
 } from '../../../services/signSubmit'
-import { getSigningFieldIssue, isSigningField, useSigningFieldsStore } from '../../../store/signingFields'
+import { getSigningFieldIssue, isSigningField, usesSigningDate, useSigningFieldsStore } from '../../../store/signingFields'
 
 type OpenApiAccountMe = operations['account-me']['responses'][200]['content']['application/json']['ocs']['data']
 type LibreSignAccountMe = Omit<OpenApiAccountMe, 'settings'> & {
@@ -516,7 +517,7 @@ const elements = computed(() => {
 			const hasSignature = Boolean(signatureData?.createdAt)
 			return hasSignature && signRequestIds.has(row.signRequestId)
 		})
-		.map(row => isSigningField(row.type) ? { ...row, value: signingFieldsStore.values[row.elementId] ?? (row.type === 'checkbox' ? false : '') } : row)
+		.map(row => isSigningField(row.type) ? { ...row, value: usesSigningDate(row) ? '' : signingFieldsStore.values[row.elementId] ?? (row.type === 'checkbox' ? false : '') } : row)
 })
 
 const hasSignatures = computed(() => elements.value.some(row => !isSigningField(row.type)))

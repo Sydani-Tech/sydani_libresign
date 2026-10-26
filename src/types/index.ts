@@ -50,7 +50,7 @@ export type NewFilePayload = ApiComponents['schemas']['NewFile']
 export type IdentifyMethodRecord = ApiComponents['schemas']['IdentifyMethod']
 export type IdentifyAccountRecord = ApiComponents['schemas']['IdentifyAccount']
 export type VisibleElementRecord = ApiComponents['schemas']['VisibleElement'] & {
-	metadata?: { label?: string, required?: boolean }
+	metadata?: { label?: string, required?: boolean, useSigningDate?: boolean, signingDateTimezone?: string }
 }
 export type FileSettings = ApiComponents['schemas']['FolderSettings']
 export type IdentifyMethodSetting = AdminComponents['schemas']['IdentifyMethodSetting']
@@ -90,7 +90,7 @@ export type RequestSignatureSignerPayload = NonNullable<RequestSignatureUpdatePa
 export type RequestSignatureSignerResponse = NonNullable<RequestSignatureResponse['signers']>[number]
 export type RequestSignatureVisibleElementPayload = Omit<NonNullable<RequestSignatureUpdatePayload['visibleElements']>[number], 'elementId'> & {
 	elementId?: number
-	metadata?: { label?: string, required?: boolean }
+	metadata?: { label?: string, required?: boolean, useSigningDate?: boolean, signingDateTimezone?: string }
 }
 export type FileStatus = FileListEntry['status']
 export type FileStatusText = FileListEntry['statusText']

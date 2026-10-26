@@ -6,6 +6,12 @@ import { describe, expect, it } from 'vitest'
 import { getSigningFieldIssue } from '../../store/signingFields'
 
 describe('signing field completion', () => {
+	it.each([undefined, '', '1999-12-31', 'malicious client value'])('does not ask the signer to complete a server-controlled date (%s)', value => {
+		expect(getSigningFieldIssue({ type: 'date', metadata: { required: true, useSigningDate: true } }, value)).toBeNull()
+	})
+	it('does not apply the signing-date option to a text field', () => {
+		expect(getSigningFieldIssue({ type: 'text', metadata: { useSigningDate: true } }, '')).toBe('required')
+	})
 	it.each([undefined, null, '', '   '])('requires a value for text and date (%s)', value => {
 		for (const type of ['text', 'date']) expect(getSigningFieldIssue({ type }, value)).toBe('required')
 	})

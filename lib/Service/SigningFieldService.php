@@ -19,13 +19,37 @@ class SigningFieldService {
 		return in_array($type, self::TYPES, true);
 	}
 
-	public static function definition(array $metadata): array {
+	public const DEFAULT_SIGNING_DATE_TIMEZONE = 'Africa/Lagos';
+
+	public static function definition(array $metadata, ?string $type = null): array {
 		$label = $metadata['label'] ?? '';
 		$required = $metadata['required'] ?? true;
 		if (!is_string($label) || mb_strlen($label) > 100 || !is_bool($required)) {
 			throw new LibresignException('Invalid field label or required setting.');
 		}
-		return ['label' => trim($label), 'required' => $required];
+		$useSigningDate = $metadata['useSigningDate'] ?? false;
+		if (!is_bool($useSigningDate) || ($useSigningDate && $type !== null && $type !== 'date')) {
+			throw new LibresignException('Use signing date is only available for date fields.');
+		}
+		$result = ['label' => trim($label), 'required' => $required];
+		if ($useSigningDate) {
+			$timezone = $metadata['signingDateTimezone'] ?? self::DEFAULT_SIGNING_DATE_TIMEZONE;
+			if (!is_string($timezone) || !in_array($timezone, \DateTimeZone::listIdentifiers(\DateTimeZone::ALL_WITH_BC), true)) {
+				throw new LibresignException('Invalid signing date timezone.');
+			}
+			$result += ['useSigningDate' => true, 'signingDateTimezone' => $timezone];
+		}
+		return $result;
+	}
+
+	public static function usesSigningDate(FileElement $field): bool {
+		return $field->getType() === 'date' && (self::definition($field->getMetadata() ?? [], 'date')['useSigningDate'] ?? false);
+	}
+
+	public static function signingDate(FileElement $field, \DateTimeInterface $signedAt): string {
+		$definition = self::definition($field->getMetadata() ?? [], $field->getType());
+		return \DateTimeImmutable::createFromInterface($signedAt)
+			->setTimezone(new \DateTimeZone($definition['signingDateTimezone'] ?? self::DEFAULT_SIGNING_DATE_TIMEZONE))->format('Y-m-d');
 	}
 
 	public static function validateValue(string $type, array $metadata, mixed $value): string|bool {
@@ -59,10 +83,15 @@ class SigningFieldService {
 	}
 
 	/** Missing optional fields have an explicit empty value; required fields fail closed. */
-	public static function submittedValue(FileElement $field, array $elements): string|bool {
+	public static function submittedValue(FileElement $field, array $elements, ?\DateTimeInterface $signingTime = null): string|bool {
 		$matches = array_values(array_filter($elements, fn (array $item) => ($item['documentElementId'] ?? null) === $field->getId()));
 		if (count($matches) > 1) {
 			throw new LibresignException('Duplicate field submission.');
+		}
+		if (self::usesSigningDate($field)) {
+			// Request validation never requires or trusts a client-provided date.
+			// The worker supplies a fresh server instant only when signing begins.
+			return $signingTime ? self::signingDate($field, $signingTime) : '';
 		}
 		$value = $matches[0]['value'] ?? ($field->getType() === 'checkbox' ? false : '');
 		return self::validateValue($field->getType(), $field->getMetadata() ?? [], $value);

@@ -7,8 +7,10 @@ import { ref } from 'vue'
 
 export const isSigningField = (type: unknown): boolean => ['text', 'date', 'checkbox'].includes(String(type))
 
-type SigningFieldDefinition = { type?: string, metadata?: { required?: boolean } | null }
+export type SigningFieldDefinition = { type?: string, metadata?: { required?: boolean, useSigningDate?: boolean, signingDateTimezone?: string } | null }
+export const usesSigningDate = (field: SigningFieldDefinition): boolean => field.type === 'date' && field.metadata?.useSigningDate === true
 export function getSigningFieldIssue(field: SigningFieldDefinition, value: unknown): 'required' | 'invalid' | null {
+	if (usesSigningDate(field)) return null
 	const required = field.metadata?.required !== false
 	if (field.type === 'checkbox') return required && value !== true ? 'required' : null
 	if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) return required ? 'required' : null

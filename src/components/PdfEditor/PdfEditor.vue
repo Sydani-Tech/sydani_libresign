@@ -30,6 +30,10 @@
 							@change="updateFieldMetadata(slotProps.object, { label: ($event.target as HTMLInputElement).value })" @pointerdown.stop @mousedown.stop @touchstart.stop>
 						<label class="pdf-editor__required"><input type="checkbox" :checked="(slotProps.object.metadata ?? slotProps.object.visibleElement?.metadata)?.required !== false"
 							@change="updateFieldMetadata(slotProps.object, { required: ($event.target as HTMLInputElement).checked })" @pointerdown.stop @mousedown.stop @touchstart.stop> {{ t('libresign', 'Required') }}</label>
+						<label v-if="slotProps.object?.type === 'date'" class="pdf-editor__required"><input type="checkbox"
+							:checked="(slotProps.object.metadata ?? slotProps.object.visibleElement?.metadata)?.useSigningDate === true"
+							@change="updateFieldMetadata(slotProps.object, { useSigningDate: ($event.target as HTMLInputElement).checked })"
+							@pointerdown.stop @mousedown.stop @touchstart.stop> {{ t('libresign', 'Use signing date') }}</label>
 					</template>
 					<SignerMenu
 						v-if="hasMultipleSigners && slotProps.object?.signer"
@@ -134,7 +138,7 @@ type PdfEditorObject = {
 	height: number
 	signer?: SignerSummaryRecord | SignerDetailRecord | null
 	visibleElement?: VisibleElementRecord | null
-	metadata?: { label?: string, required?: boolean }
+	metadata?: { label?: string, required?: boolean, useSigningDate?: boolean, signingDateTimezone?: string }
 	documentIndex?: number
 }
 type PdfDocument = {
@@ -346,10 +350,11 @@ function startAddingSigner(signer: SignerSummaryRecord | SignerDetailRecord | nu
 	return true
 }
 
-function updateFieldMetadata(object: PdfEditorObject, patch: { label?: string, required?: boolean }) {
+function updateFieldMetadata(object: PdfEditorObject, patch: { label?: string, required?: boolean, useSigningDate?: boolean, signingDateTimezone?: string }) {
 	const location = findObjectLocation(pdfElements.value, object.id)
 	if (!location) return
 	const metadata = { ...(object.metadata ?? object.visibleElement?.metadata), ...patch }
+	if (metadata.useSigningDate && !metadata.signingDateTimezone) metadata.signingDateTimezone = 'Africa/Lagos'
 	pdfElements.value?.updateObject(location.docIndex, object.id, { metadata })
 }
 

@@ -72,6 +72,7 @@ class SignFileService {
 	/** @var array<int, VisibleElementAssoc> indexed by fileElementId */
 	private $elements = [];
 	private array $elementsInput = [];
+	private ?\DateTimeImmutable $signingFieldTime = null;
 	private bool $signWithoutPassword = false;
 	private ?string $signatureMethodName = null;
 	private ?File $fileToSign = null;
@@ -494,6 +495,7 @@ class SignFileService {
 
 			try {
 				$signedFile = $this->getEngine()->sign();
+				$this->assertSigningDateMatchesSignature();
 			} catch (LibresignException|Exception $e) {
 				$this->cleanupUnsignedSignedFile();
 				$this->recordSignatureAttempt($e);
@@ -526,10 +528,12 @@ class SignFileService {
 			'fileToSign' => $this->fileToSign,
 			'createdSignedFile' => $this->createdSignedFile,
 			'engine' => $this->engine,
+			'signingFieldTime' => $this->signingFieldTime,
 		];
 	}
 
 	private function resetCachedState(): void {
+		$this->signingFieldTime = null;
 		$this->fileToSign = null;
 		$this->createdSignedFile = null;
 		$this->engine = null;
@@ -539,6 +543,7 @@ class SignFileService {
 		$this->fileToSign = $state['fileToSign'];
 		$this->createdSignedFile = $state['createdSignedFile'];
 		$this->engine = $state['engine'];
+		$this->signingFieldTime = $state['signingFieldTime'];
 	}
 
 	public function enqueueParallelSigningJobs(array $signRequests, array $jobArguments = []): int {
@@ -619,6 +624,7 @@ class SignFileService {
 			}
 			$this->signRequest = $signRequestData['signRequest'];
 			$this->engine = null;
+			$this->signingFieldTime = null;
 			$this->setVisibleElements($this->elementsInput);
 			$this->fileToSign = null;
 
@@ -626,6 +632,7 @@ class SignFileService {
 
 			try {
 				$signedFile = $this->getEngine()->sign();
+				$this->assertSigningDateMatchesSignature();
 			} catch (LibresignException|Exception $e) {
 				$this->cleanupUnsignedSignedFile();
 				$this->recordSignatureAttempt($e);
@@ -843,14 +850,26 @@ class SignFileService {
 		return hash('sha256', $file->getContent());
 	}
 
+	private function assertSigningDateMatchesSignature(): void {
+		if (!$this->signingFieldTime) return;
+		$automatic = array_filter($this->fileElementMapper->getByFileIdAndSignRequestId($this->signRequest->getFileId(), $this->signRequest->getId()), SigningFieldService::usesSigningDate(...));
+		if (!$automatic) return;
+		$actual = $this->getEngine()->getLastSignedDate();
+		foreach ($automatic as $field) {
+			if (SigningFieldService::signingDate($field, $actual) !== SigningFieldService::signingDate($field, $this->signingFieldTime)) {
+				throw new LibresignException('Signing crossed a date boundary. Please try signing again.');
+			}
+		}
+	}
+
 	protected function updateSignRequest(string $hash): void {
 		$metadata = $this->signRequest->getMetadata() ?? [];
 		$values = [];
 		foreach ($this->fileElementMapper->getByFileIdAndSignRequestId($this->signRequest->getFileId(), $this->signRequest->getId()) as $field) {
 			if (SigningFieldService::isField($field->getType())) {
 				$values[] = ['elementId' => $field->getId(), 'type' => $field->getType(),
-					'label' => SigningFieldService::definition($field->getMetadata() ?? [])['label'],
-					'value' => SigningFieldService::submittedValue($field, $this->elementsInput)];
+					'label' => SigningFieldService::definition($field->getMetadata() ?? [], $field->getType())['label'],
+					'value' => SigningFieldService::submittedValue($field, $this->elementsInput, $this->signingFieldTime)];
 			}
 		}
 		if ($values) {
@@ -1031,10 +1050,13 @@ class SignFileService {
 				'id' => $field->getId(), 'type' => $field->getType(),
 				'page' => $field->getPage(), 'llx' => $field->getLlx(), 'lly' => $field->getLly(),
 				'urx' => $field->getUrx(), 'ury' => $field->getUry(),
-				'metadata' => SigningFieldService::definition($field->getMetadata() ?? []),
+				'metadata' => SigningFieldService::definition($field->getMetadata() ?? [], $field->getType()),
 			];
 			if ($this->signRequest instanceof SignRequestEntity && $field->getSignRequestId() === $this->signRequest->getId()) {
-				$entry['value'] = SigningFieldService::submittedValue($field, $this->elementsInput);
+				if (SigningFieldService::usesSigningDate($field)) {
+					$this->signingFieldTime ??= \DateTimeImmutable::createFromInterface($this->timeFactory->getDateTime());
+				}
+				$entry['value'] = SigningFieldService::submittedValue($field, $this->elementsInput, $this->signingFieldTime);
 			}
 			$fieldPlan[] = $entry;
 		}

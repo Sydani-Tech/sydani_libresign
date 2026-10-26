@@ -14,6 +14,20 @@ use OCA\Libresign\Service\SigningFieldService;
 use OCA\Libresign\Tests\Unit\TestCase;
 
 final class SigningFieldServiceTest extends TestCase {
+	public function testSigningDateUsesServerInstantAndIgnoresClientDate(): void {
+		$field = new FileElement(); $field->setId(77); $field->setType('date');
+		$field->setMetadata(['required' => true, 'useSigningDate' => true, 'signingDateTimezone' => 'Africa/Lagos']);
+		$when = new \DateTimeImmutable('2026-10-26T23:30:00Z');
+		$this->assertSame('', SigningFieldService::submittedValue($field, []));
+		$this->assertSame('2026-10-27', SigningFieldService::submittedValue($field, [['documentElementId' => 77, 'value' => '1999-12-31']], $when));
+		$this->assertSame('2026-10-26T23:30:00+00:00', $when->format(DATE_ATOM));
+	}
+
+	public function testSigningDateCannotBeEnabledForText(): void {
+		$this->expectException(LibresignException::class);
+		SigningFieldService::definition(['useSigningDate' => true], 'text');
+	}
+
 	public function testValidValuesIncludingUnicode(): void {
 		$this->assertSame('Ékomobong', SigningFieldService::validateValue('text', ['required' => true], ' Ékomobong '));
 		$this->assertSame('2026-10-06', SigningFieldService::validateValue('date', ['required' => true], '2026-10-06'));

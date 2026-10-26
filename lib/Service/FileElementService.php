@@ -75,7 +75,7 @@ class FileElementService {
 			throw new \InvalidArgumentException('Form fields cannot change after signing has begun.');
 		}
 		if ($isSigningField) {
-			$properties['metadata'] = SigningFieldService::definition($properties['metadata'] ?? []);
+			$properties['metadata'] = SigningFieldService::definition($properties['metadata'] ?? [], $properties['type']);
 			$page = $properties['coordinates']['page'] ?? 1;
 			if (!isset($file->getMetadata()['d'][$page - 1])) {
 				throw new \InvalidArgumentException('Field page does not exist in the PDF.');
@@ -223,7 +223,7 @@ class FileElementService {
 				'fileId' => $fileElement->getFileId(),
 				'type' => $fileElement->getType(),
 				'metadata' => SigningFieldService::isField($fileElement->getType())
-					? SigningFieldService::definition($elementMetadata ?? []) : [],
+					? SigningFieldService::definition($elementMetadata ?? [], $fileElement->getType()) : [],
 				'coordinates' => [
 					'page' => $fileElement->getPage(),
 					'urx' => $fileElement->getUrx(),

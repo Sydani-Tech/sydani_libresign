@@ -499,6 +499,24 @@ describe('Sign.vue - signWithTokenCode', () => {
 	})
 
 	describe('Sign.vue - lifecycle regressions', () => {
+		it('shows a read-only signing date and leaves only manual dates in the required-field notice', async () => {
+			setActivePinia(createPinia())
+			const { useSignStore } = await import('../../../store/sign.js')
+			const store = useSignStore()
+			store.document = createSignDocument({ status: FILE_STATUS.ABLE_TO_SIGN, signers: [{ me: true, status: SIGN_REQUEST_STATUS.ABLE_TO_SIGN, signRequestId: 501 }], visibleElements: [
+				{ elementId: 201, fileId: 1, signRequestId: 501, type: 'date', metadata: { label: 'Signed on', required: true, useSigningDate: true, signingDateTimezone: 'Africa/Lagos' }, coordinates: { page: 1 } },
+				{ elementId: 202, fileId: 1, signRequestId: 501, type: 'date', metadata: { label: 'Effective date', required: true }, coordinates: { page: 1 } },
+			] })
+			const options = createSignMountOptions()
+			const wrapper = mount((await import('../../../views/SignPDF/_partials/Sign.vue')).default, { ...options, global: { ...options.global, stubs: { ...options.global.stubs, NcNoteCard: { template: '<aside><slot /></aside>' } } } })
+			await flushPromises()
+			expect(wrapper.findAll('.signing-fields-summary input')).toHaveLength(1)
+			expect(wrapper.get('.signing-fields-summary__automatic').text()).toContain('Africa/Lagos')
+			expect(wrapper.findAll('.signing-fields-summary__issue')).toHaveLength(1)
+			expect(wrapper.get('.signing-fields-summary__issue').text()).toContain('Effective date')
+			await wrapper.get('[data-signing-input="202"]').setValue('2026-10-27')
+			wrapper.unmount()
+		})
 		it('shows bold required notices beside the inputs and removes each when completed', async () => {
 			setActivePinia(createPinia())
 			const { useSignStore } = await import('../../../store/sign.js')

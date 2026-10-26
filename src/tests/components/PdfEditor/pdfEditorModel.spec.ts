@@ -28,6 +28,12 @@ const createSigner = (overrides: Partial<SignerSummaryRecord> = {}): SignerSumma
 })
 
 describe('pdfEditorModel', () => {
+	it('preserves signing-date policy when an existing field is reopened or copied', () => {
+		const metadata = { label: 'Signed on', required: false, useSigningDate: true, signingDateTimezone: 'Africa/Lagos' }
+		const object = createPdfEditorObject({ signer: createSigner({ signRequestId: 1 }), visibleElement: { type: 'date', elementId: 1, fileId: 2, signRequestId: 1, metadata, coordinates: { page: 1 } }, placement: { docIndex: 0, pageIndex: 0, x: 10, y: 20, width: 120, height: 28 } })
+		expect(object.metadata).toEqual(metadata)
+		expect(object.metadata).not.toBe(metadata)
+	})
 	describe('RULE: signer identity is derived from a single stable key', () => {
 		it('prefers signRequestId over email', () => {
 			expect(getPdfEditorSignerId(createSigner({ signRequestId: 15, email: 'fallback@example.com' }))).toBe('15')

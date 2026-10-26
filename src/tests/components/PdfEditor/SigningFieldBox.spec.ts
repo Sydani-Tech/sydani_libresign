@@ -21,6 +21,20 @@ const field = (type: string): VisibleElementRecord => ({
 })
 
 describe('SigningFieldBox.vue', () => {
+	it('makes an automatic signing date read-only without reading the browser clock', () => {
+		setActivePinia(createPinia())
+		const date = { ...field('date'), metadata: { label: 'Signed on', required: true, useSigningDate: true } }
+		const wrapper = mount(SigningFieldBox, { props: { type: 'date', field: date, signerLabel: 'External signer', editable: true } })
+		expect(wrapper.find('input').exists()).toBe(false)
+		expect(wrapper.text()).toContain('Date set when signing')
+		expect(useSigningFieldsStore().values[42]).toBeUndefined()
+	})
+	it('shows the automatic setting in the creator preview independently of Required', () => {
+		setActivePinia(createPinia())
+		const wrapper = mount(SigningFieldBox, { props: { type: 'date', metadata: { label: 'Signed on', required: false, useSigningDate: true }, signerLabel: 'Ada' } })
+		expect(wrapper.text()).toContain('Use signing date')
+		expect(wrapper.text()).not.toContain('*')
+	})
 	beforeEach(() => setActivePinia(createPinia()))
 
 	it('captures typed values against the persisted field ID', async () => {

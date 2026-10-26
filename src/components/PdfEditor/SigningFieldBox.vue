@@ -5,7 +5,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 <template>
 	<div class="signing-field" :class="{ 'signing-field--editable': editable }">
 		<template v-if="editable && field?.elementId">
-			<input v-if="type === 'checkbox'"
+			<span v-if="automaticDate" class="signing-field__automatic" role="note">{{ t('libresign', 'Date set when signing') }}</span>
+			<input v-else-if="type === 'checkbox'"
 				:id="`signing-field-${field.elementId}`"
 				v-model="fields.values[field.elementId]"
 				type="checkbox"
@@ -22,25 +23,26 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 		</template>
 		<template v-else>
 			<span class="signing-field__label">{{ type === 'checkbox' ? '☑ ' : type === 'date' ? '▦ ' : '' }}{{ label }}</span>
-			<small>{{ signerLabel }}{{ required ? ' *' : '' }}</small>
+			<small>{{ signerLabel }}{{ required ? ' *' : '' }}{{ automaticDate ? ' · ' + t('libresign', 'Use signing date') : '' }}</small>
 		</template>
 	</div>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
 import { t } from '@nextcloud/l10n'
-import { useSigningFieldsStore } from '../../store/signingFields'
+import { useSigningFieldsStore, usesSigningDate } from '../../store/signingFields'
 import type { VisibleElementRecord } from '../../types/index'
 const props = defineProps<{
 	type: string
 	field?: VisibleElementRecord | null
-	metadata?: { label?: string, required?: boolean }
+	metadata?: { label?: string, required?: boolean, useSigningDate?: boolean, signingDateTimezone?: string }
 	signerLabel: string
 	editable?: boolean
 }>()
 const fields = useSigningFieldsStore()
 const label = computed(() => props.metadata?.label || props.field?.metadata?.label
 	|| (props.type === 'checkbox' ? t('libresign', 'Checkbox') : props.type === 'date' ? t('libresign', 'Date') : t('libresign', 'Text')))
+const automaticDate = computed(() => usesSigningDate({ type: props.type, metadata: props.metadata ?? props.field?.metadata }))
 const required = computed(() => (props.metadata ?? props.field?.metadata)?.required !== false)
 </script>
 <style scoped lang="scss">
@@ -58,6 +60,7 @@ const required = computed(() => (props.metadata ?? props.field?.metadata)?.requi
 	overflow: hidden;
 	color: var(--color-main-text);
 	&__label { font-weight: 600; white-space: nowrap; }
+	&__automatic { padding: 3px 6px; font-size: 12px; }
 	small { font-size: 10px; white-space: nowrap; }
 	input:not([type='checkbox']) { width: 100%; min-height: 0; height: 100%; margin: 0; font-size: 12px; }
 	input[type='checkbox'] { width: 18px; height: 18px; min-height: 0; margin: auto; appearance: auto; }
