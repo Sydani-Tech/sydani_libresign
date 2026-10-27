@@ -18,40 +18,18 @@
 				<!-- Request picker -->
 				<RequestPicker ref="requestPickerRef" variant="primary" />
 
-				<!-- Current folder breadcrumbs -->
-				<NcBreadcrumbs class="files-list__breadcrumbs">
-					<NcBreadcrumb :name="t('libresign', 'Files')"
-						:title="t('libresign', 'Files')"
-						:force-icon-text="true"
-						:to="{ name: 'fileslist' }"
-						:aria-description="t('libresign', 'Files')"
-						:disable-drop="true"
-						force-menu
-						v-model:open="isMenuOpen">
-						<template #icon>
-							<NcIconSvgWrapper :size="20"
-								:svg="viewIcon" />
-						</template>
-						<template #menu-icon>
-							<NcIconSvgWrapper :path="isMenuOpen ? mdiChevronUp : mdiChevronDown" />
-						</template>
-						<!-- Reload button -->
-						<NcActionButton close-after-click @click="refresh()">
-							<template #icon>
-								<NcIconSvgWrapper :path="mdiReload" />
-							</template>
-							<!-- TRANSLATORS Button inside the breadcrumb dropdown menu that reloads the file list -->
-							{{ t('libresign', 'Reload content') }}
-						</NcActionButton>
-					</NcBreadcrumb>
-				</NcBreadcrumbs>
+				<h2 class="files-list__title">{{ t('libresign', 'Files') }}</h2>
+				<NcButton class="files-list__reload" :disabled="filesStore.loading" @click="refresh">
+					<template #icon><NcIconSvgWrapper :path="mdiReload" /></template>
+					{{ t('libresign', 'Reload Content') }}
+				</NcButton>
 
 				<NcLoadingIcon v-if="isRefreshing"
 					class="files-list__refresh-icon"
 					:name="t('libresign', 'File list is reloading')" />
 
 				<!-- Filters that can be applied to the file list -->
-				<FileListFilters />
+
 
 				<NcButton :aria-label="gridViewButtonLabel"
 					:title="gridViewButtonLabel"
@@ -64,6 +42,8 @@
 					</template>
 				</NcButton>
 			</div>
+			<div class="files-list__filters-panel"><DocumentFilters :model-value="filesStore.reportFilters || defaultFilters" :senders="filesStore.senders" :loading="filesStore.loading" @apply="applyFilters" /></div>
+			<p v-if="loadError" class="files-list__error" role="alert">{{ loadError }}</p>
 			<FilesListVirtual :nodes="dirContentsSorted"
 				:loading="loading">
 				<template #empty>
@@ -74,7 +54,7 @@
 						:name="t('libresign', 'Loading …')" />
 
 					<NcEmptyContent
-						v-else-if="!loading && isEmptyDir && filtersStore.activeChips.length === 0"
+						v-else-if="!loading && isEmptyDir && !hasActiveFilters"
 						:name="t('libresign', 'There are no documents')"
 						:description="canRequestSign ? t('libresign', 'Choose a file to create a signature request.') : ''">
 						<template v-if="canRequestSign" #action>
@@ -86,7 +66,7 @@
 					</NcEmptyContent>
 
 					<NcEmptyContent
-						v-else-if="!loading && isEmptyDir && filtersStore.activeChips.length > 0"
+						v-else-if="!loading && isEmptyDir && hasActiveFilters"
 						:name="t('libresign', 'No documents found')">
 						<template #icon>
 							<NcIconSvgWrapper :path="mdiFolder" />
@@ -104,7 +84,7 @@ import { t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
-import HomeSvg from '@mdi/svg/svg/home.svg?raw'
+
 import {
 	mdiChevronDown,
 	mdiChevronUp,
@@ -115,19 +95,21 @@ import {
 	mdiViewGridOutline,
 } from '@mdi/js'
 
-import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
-import NcBreadcrumb from '@nextcloud/vue/components/NcBreadcrumb'
-import NcBreadcrumbs from '@nextcloud/vue/components/NcBreadcrumbs'
+
+
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 
-import FileListFilters from './FileListFilters.vue'
+import DocumentFilters from '../../components/DocumentFilters/DocumentFilters.vue'
+import { documentFilterDefaults, type DocumentFilters as FilterState } from '../../services/documentFilters'
 import FilesListVirtual from './FilesListVirtual.vue'
 import RequestPicker from '../../components/Request/RequestPicker.vue'
 
+import { useFilesSortingStore } from '../../store/filesSorting.js'
 import { useFilesStore } from '../../store/files.js'
 import { useFiltersStore } from '../../store/filters.js'
 import { useUserConfigStore } from '../../store/userconfig.js'
@@ -138,6 +120,7 @@ defineOptions({
 })
 
 const filesStore = useFilesStore()
+const sortingStore = useFilesSortingStore()
 const filtersStore = useFiltersStore()
 const userConfigStore = useUserConfigStore()
 const sidebarStore = useSidebarStore()
@@ -150,7 +133,8 @@ const isDraggingFiles = ref(false)
 const dragDepth = ref(0)
 
 const canRequestSign = computed(() => filesStore.canRequestSign)
-const viewIcon = computed(() => HomeSvg)
+const defaultFilters = documentFilterDefaults()
+const loadError = ref('')
 const isGridView = computed(() => Boolean(userConfigStore.files_list_grid_view))
 const gridViewButtonLabel = computed(() => {
 	return isGridView.value
@@ -159,10 +143,25 @@ const gridViewButtonLabel = computed(() => {
 })
 const dirContentsSorted = computed(() => filesStore.filesSorted())
 const isEmptyDir = computed(() => filesStore.filesSorted().length === 0)
+const hasActiveFilters = computed(() => {
+	const filters = filesStore.reportFilters
+	return Boolean(filters && (filters.name || filters.sender || filters.recipientName || filters.recipientEmail || filters.fromDate || filters.toDate || filters.status !== 'all')) || filtersStore.activeChips.length > 0
+})
 const isRefreshing = computed(() => !isEmptyDir.value && loading.value)
 
-function refresh() {
-	filesStore.updateAllFiles()
+async function refresh() {
+	loadError.value = ''
+	try { await filesStore.updateAllFiles() } catch { loadError.value = t('libresign', 'Unable to load files. Please try again.') }
+}
+function syncSorting(value: FilterState) {
+	const columns: Record<string, string> = { requested: 'requested_at', completed: 'completed_at', created: 'created_at', sender: 'user_id' }
+	sortingStore.sortingMode = columns[value.sortBy] || value.sortBy
+	sortingStore.sortingDirection = value.direction
+}
+async function applyFilters(value: FilterState) {
+	filesStore.reportFilters = value
+	syncSorting(value)
+	await refresh()
 }
 
 function toggleGridView() {
@@ -233,7 +232,9 @@ function checkAndOpenFileFromUri() {
 }
 
 onMounted(async () => {
-	await filesStore.getAllFiles({ force_fetch: true })
+	filesStore.reportFilters ||= documentFilterDefaults()
+	syncSorting(filesStore.reportFilters)
+	await refresh()
 	loading.value = false
 	filesStore.disableIdentifySigner()
 	checkAndOpenFileFromUri()
@@ -272,6 +273,11 @@ defineExpose({
 	position: relative !important;
 }
 
+.files-list__reload { flex: 0 0 auto !important; }
+.files-list__filters-panel { flex: 0 0 auto; overflow-y: auto; max-height: 48vh; padding: 0 20px; }
+.files-list__title { flex: 1 1 auto !important; font-size: 22px; font-weight: 650; margin: 0 12px; }
+.files-list__error { padding: 12px 20px; color: var(--color-error); }
+.files-list__header { flex-wrap: wrap; gap: 8px; }
 .files-list__dropzone {
 	display: flex;
 	overflow: hidden;

@@ -539,6 +539,7 @@ namespace OCA\Libresign;
  *     signatureFlow: 'none'|'parallel'|'ordered_numeric',
  * }
  * @psalm-type LibresignFileListResponse = array{
+ *     senders?: list<array{id: string, name: string}>,
  *     pagination: LibresignPagination,
  *     data: list<LibresignFileSummary|LibresignDetailedFile>,
  *     settings?: LibresignSettings,

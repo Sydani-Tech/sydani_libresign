@@ -30,7 +30,7 @@
 			<NcAppNavigationItem v-if="isAdmin"
 				id="signed-archive"
 				:to="{ name: 'organisationalArchive' }"
-				:name="t('libresign', 'Signed archive')"
+				:name="t('libresign', 'Signed Archive')"
 				@click="unselectFile">
 				<template #icon>
 					<NcIconSvgWrapper :path="mdiFolder" :size="20" />

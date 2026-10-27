@@ -288,6 +288,14 @@ class FileController extends AEnvironmentAwareController {
 	 * @param string|null $sortBy Name of the column to sort by
 	 * @param string|null $sortDirection Ascending or descending order
 	 * @param int|null $parentFileId Filter files by parent envelope file ID
+	 * @param string $name Case-insensitive document name filter
+	 * @param string $sender Exact sender account UID
+	 * @param string $recipientName Recipient name (matched to the same person as recipientEmail)
+	 * @param string $recipientEmail Recipient email substring, including internal account email
+	 * @param string $dateBy requested, completed or created
+	 * @param int|null $from Inclusive date range start (UNIX timestamp)
+	 * @param int|null $to Inclusive date range end (UNIX timestamp)
+	 * @param bool $includeSenders Include sender choices restricted to the user's accessible documents
 	 * @param bool $details Whether to return the detailed payload instead of the lightweight summary payload
 	 * @return DataResponse<Http::STATUS_OK, LibresignFileListResponse, array{}>
 	 *
@@ -309,7 +317,18 @@ class FileController extends AEnvironmentAwareController {
 		?string $sortDirection = null,
 		?int $parentFileId = null,
 		bool $details = false,
+		string $name = '',
+		string $sender = '',
+		string $recipientName = '',
+		string $recipientEmail = '',
+		string $dateBy = 'requested',
+		?int $from = null,
+		?int $to = null,
+		bool $includeSenders = false,
 	): DataResponse {
+		if (strlen($name) > 200 || strlen($sender) > 200 || strlen($recipientName) > 200 || strlen($recipientEmail) > 200 || ($from !== null && $to !== null && $from > $to)) {
+			return new DataResponse(['message' => 'Invalid file filter'], Http::STATUS_BAD_REQUEST);
+		}
 		$filter = array_filter([
 			'signer_uuid' => $signer_uuid,
 			'fileIds' => $fileIds,
@@ -318,6 +337,8 @@ class FileController extends AEnvironmentAwareController {
 			'start' => $start,
 			'end' => $end,
 			'parentFileId' => $parentFileId,
+			'name' => $name, 'sender' => $sender, 'recipientName' => $recipientName, 'recipientEmail' => $recipientEmail,
+			'dateBy' => $dateBy, 'from' => $from, 'to' => $to,
 		], static fn ($var) => $var !== null);
 		$sort = [
 			'sortBy' => $sortBy,
@@ -325,7 +346,7 @@ class FileController extends AEnvironmentAwareController {
 		];
 
 		$user = $this->userSession->getUser();
-		$return = $this->fileListService->listAssociatedFilesOfSignFlow($user, $page, $length, $filter, $sort, $details);
+		$return = $this->fileListService->listAssociatedFilesOfSignFlow($user, $page, $length, $filter, $sort, $details, $includeSenders);
 
 		if ($user) {
 			$return['settings'] = $this->settingsLoader->getUserIdentificationSettings($user);

@@ -48,9 +48,9 @@ describe('Organisational archive', () => {
 	it('sends distinct requested-date filters with sender and recipient', async () => {
 		const wrapper = mount(OrganisationalArchive)
 		await flushPromises()
+		wrapper.findComponent({ name: 'SenderSelect' }).vm.$emit('update:modelValue', 'alice')
 		const selects = wrapper.findAll('select')
-		await selects[0].setValue('alice')
-		await selects[2].setValue('requested')
+		await selects[1].setValue('requested')
 		await wrapper.findAll('input[type="search"]')[1].setValue('Bob')
 		await wrapper.findAll('input[type="search"]')[2].setValue('bob@example.test')
 		const dates = wrapper.findAll('input[type="date"]')

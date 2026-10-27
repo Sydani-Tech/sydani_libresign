@@ -25,13 +25,13 @@ class SigningDashboardService {
 		}
 		$q = $this->query($user, $view);
 		$q->selectDistinct(['f.id', 'f.uuid', 'f.name', 'f.status', 'f.user_id', 'f.requested_at', 'f.created_at', 'f.completed_at', 'c.name AS campaign_name', 'c.due_at AS deadline'])
-			->orderBy('f.created_at', 'DESC')->addOrderBy('f.id', 'DESC')->setFirstResult(($page - 1) * 25)->setMaxResults(25);
+			->orderBy('f.created_at', 'DESC')->addOrderBy('f.id', 'DESC')->setFirstResult(($page - 1) * 10)->setMaxResults(10);
 		$cursor = $q->executeQuery(); $rows = [];
 		while ($row = $cursor->fetch()) $rows[] = ['id' => (int)$row['id'], 'uuid' => $row['uuid'], 'name' => $row['name'], 'status' => (int)$row['status'],
 			'sender' => $this->users->get($row['user_id'])?->getDisplayName() ?? $row['user_id'], 'requestedAt' => $row['requested_at'] ?? $row['created_at'],
 			'completedAt' => $row['completed_at'], 'campaign' => $row['campaign_name'], 'deadline' => $row['deadline'] !== null ? (int)$row['deadline'] : null];
 		$cursor->closeCursor();
-		return ['counts' => $counts, 'view' => $view, 'page' => $page, 'perPage' => 25, 'total' => $counts[$view], 'documents' => $rows];
+		return ['counts' => $counts, 'view' => $view, 'page' => $page, 'perPage' => 10, 'total' => $counts[$view], 'documents' => $rows];
 	}
 	private function query(IUser $user, string $view): IQueryBuilder {
 		$q = $this->db->getQueryBuilder(); $e = $q->expr();

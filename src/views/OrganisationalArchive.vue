@@ -3,56 +3,13 @@
   SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcAppContent :page-heading="t('libresign', 'Signed archive')">
+	<NcAppContent :page-heading="t('libresign', 'Signed Archive')">
 		<section class="signed-archive">
-			<h2>{{ t('libresign', 'Signed archive') }}</h2>
+			<h2>{{ t('libresign', 'Signed Archive') }}</h2>
 			<p>{{ t('libresign', 'Read-only organisational archive. Signed documents and signing history are protected; original source files remain deletable in Nextcloud Files.') }}</p>
 			<p v-if="!isAdmin" role="alert">{{ t('libresign', 'Administrator access required.') }}</p>
 			<template v-else>
-				<form class="archive-filters" @submit.prevent="search">
-					<label>{{ t('libresign', 'Document name') }}<input v-model="filters.name" type="search" maxlength="200"></label>
-					<label>{{ t('libresign', 'Sender') }}
-						<select v-model="filters.sender">
-							<option value="">{{ t('libresign', 'All senders') }}</option>
-							<option v-for="sender in senders" :key="sender.id" :value="sender.id">{{ sender.name }}</option>
-						</select>
-					</label>
-					<label>{{ t('libresign', 'Recipient Name') }}<input v-model="filters.recipientName" type="search" maxlength="200"></label>
-					<label>{{ t('libresign', 'Recipient Email') }}<input v-model="filters.recipientEmail" type="search" maxlength="200"></label>
-					<label>{{ t('libresign', 'Status') }}
-						<select v-model="filters.status">
-							<option value="completed">{{ t('libresign', 'Completed') }}</option>
-							<option value="partial">{{ t('libresign', 'Partially signed') }}</option>
-							<option value="all">{{ t('libresign', 'All protected documents') }}</option>
-						</select>
-					</label>
-					<label>{{ t('libresign', 'Date filter') }}
-						<select v-model="filters.dateBy">
-							<option value="completed">{{ t('libresign', 'Date Completed') }}</option>
-							<option value="requested">{{ t('libresign', 'Date Requested') }}</option>
-						</select>
-					</label>
-					<label>{{ t('libresign', 'From') }}<input v-model="fromDate" type="date"></label>
-					<label>{{ t('libresign', 'To') }}<input v-model="toDate" type="date"></label>
-					<label>{{ t('libresign', 'Sort by') }}
-						<select v-model="filters.sortBy">
-							<option value="completed">{{ t('libresign', 'Date Completed') }}</option>
-							<option value="requested">{{ t('libresign', 'Date Requested') }}</option>
-							<option value="name">{{ t('libresign', 'Document name') }}</option>
-							<option value="sender">{{ t('libresign', 'Sender username') }}</option>
-						</select>
-					</label>
-					<label>{{ t('libresign', 'Order') }}
-						<select v-model="filters.direction">
-							<option value="desc">{{ t('libresign', 'Descending') }}</option>
-							<option value="asc">{{ t('libresign', 'Ascending') }}</option>
-						</select>
-					</label>
-					<div class="archive-filter-actions">
-						<NcButton type="submit" variant="primary" :disabled="loading">{{ t('libresign', 'Apply filters') }}</NcButton>
-						<NcButton :disabled="loading" @click="reset">{{ t('libresign', 'Reset') }}</NcButton>
-					</div>
-				</form>
+				<DocumentFilters :model-value="filters" :senders="senders" archive :loading="loading" @apply="applyFilters" />
 				<p class="archive-date-note">{{ t('libresign', 'Older requests may not have a recorded Date Requested. These are shown as Not recorded, never replaced with the upload date.') }}</p>
 				<p v-if="error" role="alert" class="archive-error">{{ error }}</p>
 				<div v-if="loading" role="status" aria-live="polite"><NcLoadingIcon />{{ t('libresign', 'Loading archive…') }}</div>
@@ -111,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { getCurrentUser } from '@nextcloud/auth'
 import axios from '@nextcloud/axios'
 import { t } from '@nextcloud/l10n'
@@ -120,16 +77,16 @@ import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 
+import DocumentFilters from '../components/DocumentFilters/DocumentFilters.vue'
+import { documentFilterDefaults, documentFilterParams, type DocumentFilters as FilterState } from '../services/documentFilters'
+
 type Recipient = { name: string, order: number, statusText: string, signedAt: string | null, ipAddress: string | null, identifiers: Array<{type: string, value: string}>, fields: Array<{label: string, type: string, value: unknown}> }
 type ArchivedDocument = { id: number, uuid: string, name: string, sender: {id: string, name: string}, recipients: Recipient[], requestedAt: string | null, completedAt: string | null, statusText: string, sourceDeleted: boolean, hash: string }
-const defaults = { name: '', sender: '', recipientName: '', recipientEmail: '', status: 'completed', dateBy: 'completed', sortBy: 'completed', direction: 'desc' }
-const filters = reactive({ ...defaults })
+const filters = ref(documentFilterDefaults(true))
 const isAdmin = computed(() => getCurrentUser()?.isAdmin ?? false)
 const documents = ref<ArchivedDocument[]>([])
 const senders = ref<Array<{id: string, name: string}>>([])
 const history = ref<ArchivedDocument | null>(null)
-const fromDate = ref('')
-const toDate = ref('')
 const page = ref(1)
 const length = 25
 const total = ref(0)
@@ -148,16 +105,11 @@ function validationUrl(uuid: string) {
 async function load() {
 	if (!isAdmin.value || loading.value) return
 	error.value = ''
-	if (fromDate.value && toDate.value && fromDate.value > toDate.value) {
-		error.value = t('libresign', 'The From date must not be later than the To date.')
-		return
-	}
+
 	loading.value = true
 	try {
 		const response = await axios.get(generateUrl('/apps/libresign/archive/list'), { params: {
-			...filters, page: page.value, length,
-			from: fromDate.value ? Math.floor(new Date(fromDate.value + 'T00:00:00').getTime() / 1000) : undefined,
-			to: toDate.value ? Math.floor(new Date(toDate.value + 'T23:59:59').getTime() / 1000) : undefined,
+			...documentFilterParams(filters.value), page: page.value, length,
 		} })
 		documents.value = response.data.data
 		total.value = response.data.total
@@ -171,7 +123,7 @@ async function load() {
 	}
 }
 function search() { page.value = 1; history.value = null; return load() }
-function reset() { Object.assign(filters, defaults); fromDate.value = ''; toDate.value = ''; return search() }
+function applyFilters(value: FilterState) { filters.value = value; return search() }
 function changePage(delta: number) { page.value += delta; return load() }
 async function showHistory(id: number) {
 	try {

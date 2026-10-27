@@ -37,6 +37,7 @@ class SignRequestMapper extends CachedQBMapper {
 		protected FileMapper $fileMapper,
 		private IURLGenerator $urlGenerator,
 		ICacheFactory $cacheFactory,
+		private \OCP\IUserManager $userManager,
 	) {
 		parent::__construct($db, $cacheFactory, 'libresign_sign_request');
 	}
@@ -598,7 +599,7 @@ class SignRequestMapper extends CachedQBMapper {
 			->leftJoin('f', 'libresign_identify_method', 'im', $qb->expr()->eq('sr.id', 'im.sign_request_id'))
 			->leftJoin('f', 'libresign_id_docs', 'id', 'id.file_id = f.id');
 		if ($count) {
-			$qb->select($qb->func()->count())
+			$qb->select($qb->createFunction('COUNT(DISTINCT f.id)'))
 				->setFirstResult(0)
 				->setMaxResults(null);
 		} else {
@@ -611,6 +612,8 @@ class SignRequestMapper extends CachedQBMapper {
 				'f.name',
 				'f.status',
 				'f.metadata',
+				'f.requested_at',
+				'f.completed_at',
 				'f.created_at',
 				'f.signature_flow',
 				'f.docmdp_level',
@@ -625,6 +628,8 @@ class SignRequestMapper extends CachedQBMapper {
 					'f.uuid',
 					'f.name',
 					'f.status',
+					'f.requested_at',
+					'f.completed_at',
 					'f.created_at',
 					'f.signature_flow',
 					'f.docmdp_level',
@@ -716,6 +721,8 @@ class SignRequestMapper extends CachedQBMapper {
 			}
 		}
 
+		\OCA\Libresign\Service\DocumentListFilter::apply($qb, $this->db, $this->userManager, $filter);
+
 		if (!empty($sort['sortBy']) && !empty($sort['sortDirection'])) {
 			switch ($sort['sortBy']) {
 				case 'name':
@@ -724,6 +731,9 @@ class SignRequestMapper extends CachedQBMapper {
 						$sort['sortDirection'] == 'asc' ? 'asc' : 'desc'
 					);
 					break;
+				case 'requested_at':
+				case 'completed_at':
+				case 'user_id':
 				case 'status':
 				case 'created_at':
 					$qb->orderBy(
@@ -739,7 +749,21 @@ class SignRequestMapper extends CachedQBMapper {
 			}
 		}
 
+		if (!$count) $qb->addOrderBy('f.id', ($sort['sortDirection'] ?? '') === 'asc' ? 'ASC' : 'DESC');
 		return $qb;
+	}
+
+	public function getAssociatedSenders(IUser $user): array {
+		$qb = $this->getFilesAssociatedFilesWithMeQueryBuilder($user->getUID(), ['email' => $user->getEMailAddress()]);
+		$qb->resetQueryPart('select')->selectDistinct('f.user_id')->resetQueryPart('groupBy')->resetQueryPart('orderBy');
+		$rows = $qb->executeQuery()->fetchAll();
+		$result = [];
+		foreach ($rows as $row) {
+			$uid = (string)$row['user_id'];
+			$result[] = ['id' => $uid, 'name' => $this->userManager->get($uid)?->getDisplayName() ?? $uid];
+		}
+		usort($result, static fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+		return $result;
 	}
 
 	private function getFilesAssociatedFilesWithMeStmt(

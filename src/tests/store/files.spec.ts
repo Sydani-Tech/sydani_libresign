@@ -148,6 +148,21 @@ describe('files store - critical business rules', () => {
 		axiosMock.get.mockResolvedValue(generateOCSResponse({ payload: null }))
 	})
 
+	describe('report filters', () => {
+		it('sends server filters and preserves them across pagination', async () => {
+			const store = useFilesStore()
+			store.reportFilters = { name: 'Handbook', sender: 'hr', recipientName: 'Bob', recipientEmail: 'bob@example.test', status: 'draft', dateBy: 'completed', fromDate: '2026-10-01', toDate: '', sortBy: 'sender', direction: 'asc' }
+			axiosMock.get.mockResolvedValueOnce({data:{ocs:{data:{data:[],senders:[{id:'hr',name:'HR'}],pagination:{next:'https://example.test/ocs/v2.php/apps/libresign/api/v1/file/list?page=2'}}}}}).mockResolvedValueOnce({data:{ocs:{data:{data:[],pagination:{next:null}}}}})
+			await store.getAllFiles()
+			await store.getAllFiles()
+			for (const call of axiosMock.get.mock.calls) { const params = new URL(call[0]).searchParams; expect(params.get('sender')).toBe('hr'); expect(params.get('recipientEmail')).toBe('bob@example.test'); expect(params.get('status[]')).toBe('0'); expect(params.get('sortBy')).toBe('user_id'); expect(params.get('sortDirection')).toBe('asc'); expect(params.get('includeSenders')).toBe('true') }
+			expect(store.senders).toEqual([{id:'hr',name:'HR'}])
+		})
+		it('releases loading and clears stale results when a filtered request fails', async () => {
+			const store = useFilesStore(); store.files[1] = {id:1,name:'stale'}; store.ordered=[1]; axiosMock.get.mockRejectedValueOnce(new Error('Network'))
+			await expect(store.getAllFiles()).rejects.toThrow('Network'); expect(store.loading).toBe(false); expect(store.filesSorted()).toEqual([])
+		})
+	})
 	describe('RULE: removing selected file clears selection', () => {
 		it('removing selected file resets selectedFileId', () => {
 			const store = useFilesStore()

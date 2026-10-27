@@ -44,45 +44,7 @@ class ArchiveQueryService {
 			default => [FileStatus::SIGNED->value],
 		};
 		$qb->andWhere($qb->expr()->in('f.status', $qb->createNamedParameter($statuses, IQueryBuilder::PARAM_INT_ARRAY)));
-		if (!empty($filter['name'])) {
-			$qb->andWhere($qb->expr()->iLike('f.name', $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($filter['name']) . '%')));
-		}
-		if (!empty($filter['sender'])) {
-			$qb->andWhere($qb->expr()->eq('f.user_id', $qb->createNamedParameter($filter['sender'])));
-		}
-		// Keep both filters on the same participant; matching different people on
-		// one document must not satisfy a name/email combination.
-		if (!empty($filter['recipientName']) || !empty($filter['recipientEmail'])) {
-			$sub = $this->db->getQueryBuilder();
-			$sub->select('sr2.file_id')->from('libresign_sign_request', 'sr2')
-				->leftJoin('sr2', 'libresign_identify_method', 'im2', 'im2.sign_request_id = sr2.id');
-			if (!empty($filter['recipientName'])) {
-				$sub->andWhere($sub->expr()->iLike('sr2.display_name', $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($filter['recipientName']) . '%')));
-			}
-			if (!empty($filter['recipientEmail'])) {
-				$matches = $sub->expr()->andX(
-					$sub->expr()->eq('im2.identifier_key', $qb->createNamedParameter('email')),
-					$sub->expr()->iLike('im2.identifier_value', $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($filter['recipientEmail']) . '%')),
-				);
-				// Internal signers store a UID, not their email, in identify_method.
-				$uids = [];
-				$accounts = $this->db->getQueryBuilder();
-				$accounts->selectDistinct('identifier_value')->from('libresign_identify_method')
-					->where($accounts->expr()->eq('identifier_key', $accounts->createNamedParameter('account')));
-				foreach ($accounts->executeQuery()->fetchAll() as $account) {
-					$user = $this->userManager->get($account['identifier_value']);
-					if ($user && stripos($user->getEMailAddress() ?? '', $filter['recipientEmail']) !== false) $uids[] = $user->getUID();
-				}
-				if ($uids) {
-					$matches = $sub->expr()->orX($matches, $sub->expr()->andX(
-						$sub->expr()->eq('im2.identifier_key', $qb->createNamedParameter('account')),
-						$sub->expr()->in('im2.identifier_value', $qb->createNamedParameter(array_values(array_unique($uids)), IQueryBuilder::PARAM_STR_ARRAY)),
-					));
-				}
-				$sub->andWhere($matches);
-			}
-			$qb->andWhere($qb->expr()->in('f.id', $qb->createFunction($sub->getSQL())));
-		}
+		DocumentListFilter::apply($qb, $this->db, $this->userManager, $filter);
 		if (!empty($filter['recipient'])) {
 			$needle = $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($filter['recipient']) . '%');
 			$sub = $this->db->getQueryBuilder();
@@ -100,13 +62,6 @@ class ArchiveQueryService {
 				)));
 			}
 			$qb->andWhere($qb->expr()->in('f.id', $qb->createFunction($sub->getSQL())));
-		}
-		$dateColumn = ($filter['dateBy'] ?? '') === 'requested' ? 'f.requested_at' : 'f.completed_at';
-		foreach (['from' => 'gte', 'to' => 'lte'] as $key => $operation) {
-			if (!empty($filter[$key])) {
-				$date = (new \DateTimeImmutable('@' . (int)$filter[$key]))->format('Y-m-d H:i:s');
-				$qb->andWhere($qb->expr()->$operation($dateColumn, $qb->createNamedParameter($date)));
-			}
 		}
 		$count = clone $qb;
 		$count->select($count->func()->count('f.id'));

@@ -64,6 +64,7 @@ class FileListService {
 		array $filter = [],
 		array $sort = [],
 		bool $details = false,
+		bool $includeSenders = false,
 	): array {
 		$page ??= 1;
 		$length ??= (int)$this->appConfig->getValueInt(Application::APP_ID, 'length_of_page', 100);
@@ -89,6 +90,7 @@ class FileListService {
 		return [
 			'data' => $return['data'],
 			'pagination' => $return['pagination']->getPagination($page, $length, $filter),
+			...($includeSenders ? ['senders' => $this->signRequestMapper->getAssociatedSenders($user)] : []),
 		];
 	}
 

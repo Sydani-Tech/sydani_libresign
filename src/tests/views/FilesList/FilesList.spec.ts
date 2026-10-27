@@ -91,7 +91,7 @@ vi.mock('@nextcloud/vue/components/NcBreadcrumbs', () => ({
 	default: { name: 'NcBreadcrumbs', template: '<div><slot /><slot name="actions" /></div>' },
 }))
 vi.mock('@nextcloud/vue/components/NcButton', () => ({
-	default: { name: 'NcButton', template: '<button><slot name="icon" /></button>' },
+	default: { name: 'NcButton', template: '<button><slot name="icon" /><slot /></button>' },
 }))
 vi.mock('@nextcloud/vue/components/NcEmptyContent', () => ({
 	default: { name: 'NcEmptyContent', template: '<section><slot name="action" /><slot name="icon" /></section>' },
@@ -115,9 +115,9 @@ vi.mock('../../../views/FilesList/FilesListVirtual.vue', () => ({
 	},
 }))
 
-vi.mock('../../../views/FilesList/FileListFilters.vue', () => ({
+vi.mock('../../../components/DocumentFilters/DocumentFilters.vue', () => ({
 	default: {
-		name: 'FileListFilters',
+		name: 'DocumentFilters',
 		template: '<div class="file-list-filters-stub" />',
 	},
 }))
@@ -194,7 +194,7 @@ describe('FilesList.vue rendering rules', () => {
 		expect(firstChild.classList.contains('request-picker-stub')).toBe(true)
 	})
 
-	it('renders FileListFilters in the header before the grid toggle button', async () => {
+	it('renders report filters above the list and retains the grid toggle', async () => {
 		const filesStore = useFilesStore()
 		vi.spyOn(filesStore, 'getAllFiles').mockResolvedValue({})
 
@@ -202,17 +202,13 @@ describe('FilesList.vue rendering rules', () => {
 		await flushPromises()
 
 		const header = wrapper.find('.files-list__header')
-		const filterStub = header.find('.file-list-filters-stub')
+		const filterStub = wrapper.find('.files-list__filters-panel .file-list-filters-stub')
 		const gridButton = header.find('.files-list__header-grid-button')
 
 		expect(filterStub.exists()).toBe(true)
 		expect(gridButton.exists()).toBe(true)
 
-		// FileListFilters must appear before the grid button in the DOM
-		const children = Array.from(header.element.children)
-		const filterIndex = children.findIndex(el => el.classList.contains('file-list-filters-stub'))
-		const gridIndex = children.findIndex(el => el.classList.contains('files-list__header-grid-button'))
-		expect(filterIndex).toBeLessThan(gridIndex)
+		expect(wrapper.find('.files-list__filters-panel').exists()).toBe(true)
 	})
 
 	it('calls filesStore.updateAllFiles once more when reload button is clicked', async () => {
@@ -224,7 +220,7 @@ describe('FilesList.vue rendering rules', () => {
 		await flushPromises()
 
 		const callsBefore = updateSpy.mock.calls.length
-		await wrapper.find('.nc-action-button-stub').trigger('click')
+		await wrapper.findAll('button').find(button => button.text() === 'Reload Content')!.trigger('click')
 
 		expect(updateSpy.mock.calls.length).toBe(callsBefore + 1)
 	})
