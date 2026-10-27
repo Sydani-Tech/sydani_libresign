@@ -511,7 +511,7 @@ describe('Sign.vue - signWithTokenCode', () => {
 			const wrapper = mount((await import('../../../views/SignPDF/_partials/Sign.vue')).default, { ...options, global: { ...options.global, stubs: { ...options.global.stubs, NcNoteCard: { template: '<aside><slot /></aside>' } } } })
 			await flushPromises()
 			expect(wrapper.findAll('.signing-fields-summary input')).toHaveLength(1)
-			expect(wrapper.get('.signing-fields-summary__automatic').text()).toContain('Africa/Lagos')
+			expect(wrapper.get('.signing-fields-summary__automatic').text()).toContain('Will use the signing date (WAT · UTC+1)')
 			expect(wrapper.findAll('.signing-fields-summary__issue')).toHaveLength(1)
 			expect(wrapper.get('.signing-fields-summary__issue').text()).toContain('Effective date')
 			await wrapper.get('[data-signing-input="202"]').setValue('2026-10-27')

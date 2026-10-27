@@ -26,7 +26,7 @@ describe('SigningFieldBox.vue', () => {
 		const date = { ...field('date'), metadata: { label: 'Signed on', required: true, useSigningDate: true } }
 		const wrapper = mount(SigningFieldBox, { props: { type: 'date', field: date, signerLabel: 'External signer', editable: true } })
 		expect(wrapper.find('input').exists()).toBe(false)
-		expect(wrapper.text()).toContain('Date set when signing')
+		expect(wrapper.text()).toContain('Will use the signing date')
 		expect(useSigningFieldsStore().values[42]).toBeUndefined()
 	})
 	it('shows the automatic setting in the creator preview independently of Required', () => {

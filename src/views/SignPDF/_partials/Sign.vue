@@ -20,7 +20,7 @@
 			<label v-for="field in signingFields" :key="field.elementId" class="signing-fields-summary__field"
 				:class="{ 'signing-fields-summary__field--checkbox': field.type === 'checkbox' }">
 				<span>{{ field.metadata?.label || field.type }}{{ field.metadata?.required !== false ? ' *' : '' }}</span>
-				<span v-if="usesSigningDate(field)" class="signing-fields-summary__automatic" role="note">{{ t('libresign', 'Automatically set when you sign ({timezone}).', { timezone: field.metadata?.signingDateTimezone || 'Africa/Lagos' }) }}</span>
+				<span v-if="usesSigningDate(field)" class="signing-fields-summary__automatic" role="note">{{ t('libresign', 'Will use the signing date ({timezone})', { timezone: !field.metadata?.signingDateTimezone || field.metadata.signingDateTimezone === 'Africa/Lagos' ? 'WAT · UTC+1' : field.metadata.signingDateTimezone }) }}</span>
 				<input v-else-if="field.type === 'checkbox'" v-model="signingFieldsStore.values[field.elementId]" type="checkbox"
 					:data-signing-input="field.elementId" :required="field.metadata?.required !== false"
 					:aria-invalid="getSigningFieldIssue(field, signingFieldsStore.values[field.elementId]) !== null">

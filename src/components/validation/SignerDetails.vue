@@ -22,11 +22,11 @@
 					<span>{{ t('libresign', 'Not signed yet') }}</span>
 				</template>
 				<template v-else>
-					<strong>{{ t('libresign', 'Expiration:') }}</strong>
+					<strong>{{ t('libresign', 'Certificate expires:') }}</strong>
 					<span v-if="signer.valid_to">
 						{{ dateFromSqlAnsi(signer.valid_to) }}
 					</span>
-					<span v-else>{{ t('libresign', 'No expiration date') }}</span>
+					<span v-else>{{ t('libresign', 'Certificate expiry not available') }}</span>
 				</template>
 			</template>
 			<template #extra-actions>

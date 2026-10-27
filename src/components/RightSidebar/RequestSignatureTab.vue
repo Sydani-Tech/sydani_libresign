@@ -186,13 +186,13 @@
 				<NcAppSidebarTab v-for="method in enabledMethods"
 					:id="`tab-${method.name}`"
 					:key="method.name"
-					:name="method.friendly_name">
+					:name="signerCategoryLabel(method)">
 					<template #icon>
 						<NcIconSvgWrapper :size="20"
 							:svg="getSvgIcon(method.name)" />
 					</template>
 					<IdentifySigner :signer-to-edit="signerToEdit"
-						:placeholder="method.friendly_name"
+						:placeholder="signerCategoryLabel(method)"
 						:method="method.name"
 						:methods="methods"
 						:disabled="isSignerMethodDisabled" />
@@ -254,6 +254,9 @@
 	</div>
 </template>
 <script setup lang="ts">
+function signerCategoryLabel(method: { name: string, friendly_name?: string }) {
+	return method.name === 'account' ? t('libresign', 'Internal Signers') : method.name === 'email' ? t('libresign', 'External Signers') : method.friendly_name || method.name
+}
 
 import { t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'

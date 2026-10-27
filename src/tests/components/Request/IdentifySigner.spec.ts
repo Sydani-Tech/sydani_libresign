@@ -587,7 +587,7 @@ describe('IdentifySigner rules', () => {
 
 			const label = wrapper.vm.identifyMethodLabel
 
-			expect(label).toBe('Email')
+			expect(label).toBe('External Signers')
 		})
 
 		it('returns empty string for unknown method', () => {

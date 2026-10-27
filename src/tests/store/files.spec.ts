@@ -1177,9 +1177,20 @@ describe('files store - critical business rules', () => {
 	})
 
 	describe('RULE: saveOrUpdateSignatureRequest payload rules', () => {
+		it.each([true, false])('preserves the ordinary Date policy across save (automatic=%s)', async (automatic) => {
+			const store = useFilesStore(); store.selectedFileId=1; store.files[1]={id:1,name:'date-qa.pdf',signers:[]}
+			axiosMock.mockResolvedValue({data:{ocs:{data:{id:1,signers:[]}}}})
+			await store.saveOrUpdateSignatureRequest({visibleElements:[{fileId:1,signRequestId:12,type:'date',coordinates:{page:1,top:10,left:20,width:150,height:28},metadata:{label:'Signed on',required:true,useSigningDate:automatic,ignored:'not sent'}}]})
+			expect(axiosMock.mock.calls[0][0].data.visibleElements[0].metadata).toEqual(automatic?{label:'Signed on',required:true,useSigningDate:true,signingDateTimezone:'Africa/Lagos'}:{label:'Signed on',required:true})
+		})
+		it('keeps unsaved Date-policy edits separate from the last server definition', async () => {
+			const store=useFilesStore(); const original={id:1,name:'qa.pdf',signers:[],visibleElements:[{elementId:7,type:'date',metadata:{label:'Signed on',required:true,useSigningDate:true,signingDateTimezone:'Africa/Lagos'}}]}
+			await store.addFile(original); const draft=store.getEditableFile(1); draft.visibleElements[0].metadata.useSigningDate=false
+			expect(original.visibleElements[0].metadata.useSigningDate).toBe(true)
+		})
 		it('preserves only signing-field settings in the request payload', async () => {
 			const store = useFilesStore()
-			const untrustedMetadata = { label: 'Legal name', required: false, ignored: 'not sent' }
+			const untrustedMetadata = { label: 'Legal name', required: false, useSigningDate: true, ignored: 'not sent' }
 			store.selectedFileId = 1
 			store.files[1] = { id: 1, name: 'contract.pdf', signers: [] }
 			axiosMock.mockResolvedValue({ data: { ocs: { data: { id: 1, signers: [] } } } })

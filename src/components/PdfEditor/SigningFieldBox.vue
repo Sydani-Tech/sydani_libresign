@@ -5,7 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 <template>
 	<div class="signing-field" :class="{ 'signing-field--editable': editable }">
 		<template v-if="editable && field?.elementId">
-			<span v-if="automaticDate" class="signing-field__automatic" role="note">{{ t('libresign', 'Date set when signing') }}</span>
+			<span v-if="automaticDate" class="signing-field__automatic" role="note">{{ t('libresign', 'Will use the signing date') }}</span>
 			<input v-else-if="type === 'checkbox'"
 				:id="`signing-field-${field.elementId}`"
 				v-model="fields.values[field.elementId]"

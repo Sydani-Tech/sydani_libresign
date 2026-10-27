@@ -205,6 +205,7 @@ const _filesStore = defineStore('files', () => {
 	const cloneVisibleElement = (element) => element && typeof element === 'object'
 		? {
 			...element,
+			metadata: element.metadata && typeof element.metadata === 'object' ? { ...element.metadata } : element.metadata,
 			coordinates: element.coordinates && typeof element.coordinates === 'object'
 				? { ...element.coordinates }
 				: element.coordinates,
@@ -900,6 +901,10 @@ const _filesStore = defineStore('files', () => {
 							metadata: {
 								label: element.metadata?.label || '',
 								required: element.metadata?.required !== false,
+								...(element.type === 'date' && element.metadata?.useSigningDate === true ? {
+									useSigningDate: true,
+									signingDateTimezone: element.metadata?.signingDateTimezone || 'Africa/Lagos',
+								} : {}),
 							},
 						}
 						: {}),
