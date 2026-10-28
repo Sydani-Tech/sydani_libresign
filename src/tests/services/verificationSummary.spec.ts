@@ -9,5 +9,6 @@ describe('Verification summary',()=>{
  it('does not turn a basic timestamped signature into LT',()=>{expect(verificationSummary([signer],{...proof,signatures:proof.signatures.map(s=>({...s,format:'PAdES_BASELINE_T'}))}).longTerm).toBe(false)})
  it('flags tampering even when the issuer is trusted',()=>{expect(verificationSummary([{...signer,signature_validation:{id:2}}],proof).changed).toBe(true);expect(verificationSummary([{...signer,signature_validation:{id:2}}],proof).longTerm).toBe(false)})
  it('does not claim success for incomplete evidence',()=>{expect(verificationSummary([signer],{...proof,signatures:proof.signatures.map(s=>({...s,indication:'INDETERMINATE'}))}).longTerm).toBe(false)})
+ it('uses independently verified configured anchors when the native PDF reader has no issuer trust store',()=>{const unknown={...signer,certificate_validation:{id:3}};expect(verificationSummary([unknown],proof).trusted).toBe(true);expect(verificationSummary([unknown],{...proof,signatures:proof.signatures.map(s=>({...s,indication:'INDETERMINATE'}))}).trusted).toBe(false);expect(verificationSummary([unknown],{...proof,checked:false}).trusted).toBe(false)})
  it('keeps pending participants out of signed content checks',()=>{expect(verificationSummary([{signed:null},signer],proof).signedCount).toBe(1)})
 })

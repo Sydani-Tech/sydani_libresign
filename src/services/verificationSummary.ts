@@ -7,5 +7,5 @@ export function verificationSummary(signers:Signer[],ltv?:LongTermValidation,now
  const changed=signed.some(s=>s.signature_validation?.id!==undefined&&s.signature_validation.id!==1||s.modification_validation?.status===3)||proof.some(s=>['HASH_FAILURE','SIG_CRYPTO_FAILURE'].includes(s.subIndication))
  const integrity=signed.length>0&&signed.every(s=>s.signature_validation?.id===1)&&!changed
  const longTerm=!changed&&allProof&&proof.every(s=>['PAdES_BASELINE_LT','PAdES_BASELINE_LTA'].includes(s.format)&&s.timestampVerified)
- return {signedCount:signed.length,integrity,changed,allProof,failedProof,longTerm,timestampVerified:proof.length>0&&proof.every(s=>s.timestampVerified),trusted:signed.length>0&&signed.every(s=>s.certificate_validation?.id===1),expired:signed.some(s=>s.valid_to&&new Date(s.valid_to).getTime()<now)}
+ return {signedCount:signed.length,integrity,changed,allProof,failedProof,longTerm,timestampVerified:proof.length>0&&proof.every(s=>s.timestampVerified),trusted:signed.length>0&&((allProof&&ltv?.trustScope==='organisation')||signed.every(s=>s.certificate_validation?.id===1)),expired:signed.some(s=>s.valid_to&&new Date(s.valid_to).getTime()<now)}
 }
