@@ -255,6 +255,10 @@ class JSignPdfHandler extends Pkcs12Handler {
 
 	#[\Override]
 	public function getSignedContent(): string {
+		// The handler is reused by sequential/worker flows. Never append a new
+		// signer's options to the previous signature's coordinates or certificate.
+		$this->jSignParam = null;
+		$this->parsedSignatureText = [];
 		$inputPdf = $this->getInputFile()->getContent();
 		// Verify existing signatures offline before allowing any network-enabled augmentation.
 		if (\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->enabled() && $this->hasExistingSignatures($inputPdf)) \OCP\Server::get(\OCA\Libresign\Service\PadesVerificationService::class)->assertLt($inputPdf);

@@ -26,7 +26,7 @@ LibreSign admin settings > Reminders controls the global schedule for normal req
 The job checks every fifteen minutes; system Nextcloud cron must run reliably. No global reminders are enabled by deployment or tests. Existing legacy scheduling stays active until an administrator explicitly saves the replacement policy. Settings are administrator-only; senders have no scheduling override.
 
 ## PAdES-LT
-The legacy JSignPdf 2.3.0 dependency remains configured for the existing PDF-field helper. A separate checksum-verified JSignPdf 3.2.1 DSS engine is selected only when pades_lt_enabled is true. Its bootstrap JAR must be used, with the complete sibling lib directory. Java 21 is required. Existing DocMDP policy is retained. No permissive trust or silent downgrade is enabled.
+The legacy JSignPdf 2.3.0 dependency remains configured for the existing PDF-field helper. A separate checksum-verified JSignPdf 3.2.1 DSS engine is selected only when pades_lt_enabled is true. Its bootstrap JAR must be used, with the complete sibling lib directory. Java 21 is required. Existing DocMDP policy is retained. The reusable signing handler resets its CLI options and rendered-text cache for each signing operation, preventing an earlier participant’s coordinates or certification options from leaking into the next participant’s run. No permissive trust or silent downgrade is enabled.
 
 New admin app-config values:
 - pades_lt_enabled (bool)
