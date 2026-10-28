@@ -258,6 +258,7 @@ class JSignPdfHandler extends Pkcs12Handler {
 		$inputPdf = $this->getInputFile()->getContent();
 		// Verify existing signatures offline before allowing any network-enabled augmentation.
 		if (\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->enabled() && $this->hasExistingSignatures($inputPdf)) \OCP\Server::get(\OCA\Libresign\Service\PadesVerificationService::class)->assertLt($inputPdf);
+		\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->refreshLocalRevocation($this->getCertificate(), $this->getPassword());
 		$normalizedPdf = $this->normalizePdfVersion($inputPdf);
 		$normalizedPdf = $this->pdfSigningFieldsService->fill($normalizedPdf, $this->getSignatureParams()['SigningFields'] ?? []);
 		$hashAlgorithm = $this->getHashAlgorithm($normalizedPdf);
