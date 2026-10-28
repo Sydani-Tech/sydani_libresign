@@ -160,6 +160,7 @@ class FileService {
 	}
 
 	public function validateFileContent(string $content, string $fileName, string $extension): void {
+		if ($extension === 'pdf') \OCP\Server::get(LetterheadUploadPolicy::class)->assertMayUpload($content);
 		if ($extension === 'pdf') {
 			$this->pdfValidator->validate($content, $fileName);
 		}
@@ -597,6 +598,10 @@ class FileService {
 		$this->loadFileMetadata();
 		$this->loadSettings();
 		$this->loadSigners();
+        if ($this->options->isValidateFile() && ($this->fileData->nodeType ?? 'file') !== 'envelope') {
+         $content = $this->fileContent ?: (($this->file instanceof File && $this->file->getSignedNodeId()) ? $this->getFile()->getContent() : '');
+         if ($content !== '') $this->fileData->longTermValidation = \OCP\Server::get(PadesVerificationService::class)->verify($content);
+        }
 		$this->loadVisibleElements();
 		$this->loadMessages();
 		$this->computeEnvelopeSignersProgress();

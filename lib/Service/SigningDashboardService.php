@@ -12,7 +12,7 @@ use OCP\Files\NotPermittedException;
 
 /** Personal inbox only. Administration does not widen this endpoint's scope. */
 class SigningDashboardService {
-	public const VIEWS = ['ready', 'waiting', 'signed', 'sent'];
+	public const VIEWS = ['ready', 'signed', 'sent', 'completed'];
 	public function __construct(private IDBConnection $db, private IUserManager $users) {}
 	public function get(IUser $user, string $view = 'ready', int $page = 1): array {
 		if (!$user->isEnabled()) throw new NotPermittedException('Sign in with an active account.');
@@ -41,7 +41,7 @@ class SigningDashboardService {
 			->leftJoin('f', 'libresign_camp_rcpt', 'cr', 'cr.file_id = f.id')
 			->leftJoin('cr', 'libresign_campaign', 'c', 'c.id = cr.campaign_id')
 			->where($e->isNull('ids.id'))->andWhere($e->neq('f.status', $q->createNamedParameter(4, IQueryBuilder::PARAM_INT)));
-		if ($view === 'sent') {
+		if (in_array($view, ['sent', 'completed'], true)) {
 			$q->andWhere($e->eq('f.user_id', $q->createNamedParameter($user->getUID())));
 		} else {
 			$identity = [$e->andX($e->eq('im.identifier_key', $q->createNamedParameter('account')), $e->eq('im.identifier_value', $q->createNamedParameter($user->getUID())))];
@@ -52,13 +52,15 @@ class SigningDashboardService {
 			}
 			$q->andWhere($e->orX(...$identity));
 		}
-		if ($view === 'signed') {
+		if ($view === 'completed') {
+			$q->andWhere($e->eq('f.status', $q->createNamedParameter(3, IQueryBuilder::PARAM_INT)))->andWhere($e->isNotNull('f.completed_at'))->andWhere($e->isNotNull('f.signed_hash'));
+		} elseif ($view === 'signed') {
 			$q->andWhere($e->isNotNull('sr.signed'))->andWhere($e->in('f.status', $q->createNamedParameter([1, 2, 3, 5], IQueryBuilder::PARAM_INT_ARRAY)));
 		} else {
 			$q->andWhere($e->in('f.status', $q->createNamedParameter($view === 'sent' ? [1, 2, 5] : [1, 2], IQueryBuilder::PARAM_INT_ARRAY)));
 			$q->andWhere($e->orX($e->isNull('c.id'), $e->andX($e->eq('c.status', $q->createNamedParameter('active')), $e->neq('cr.queue_state', $q->createNamedParameter('exempt')))));
 			if ($view !== 'sent') {
-				$q->andWhere($e->isNull('sr.signed'))->andWhere($e->eq('sr.status', $q->createNamedParameter($view === 'ready' ? 1 : 0, IQueryBuilder::PARAM_INT)));
+				$q->andWhere($e->isNull('sr.signed'))->andWhere($e->eq('sr.status', $q->createNamedParameter(1, IQueryBuilder::PARAM_INT)));
 			}
 		}
 		return $q;

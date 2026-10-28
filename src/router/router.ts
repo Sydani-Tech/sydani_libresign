@@ -101,6 +101,7 @@ const routes: RouteRecordRaw[] = [
 	},
 
 	// internal pages
+	{path:'/f/letterheads',name:'letterheads',component:()=>import('../views/Letterheads.vue')},
 	{path:'/f/dashboard',name:'signingDashboard',component:()=>import('../views/SigningDashboard.vue')},
 	{
 		path: '/f/campaign',

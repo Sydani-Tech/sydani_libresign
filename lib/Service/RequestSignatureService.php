@@ -318,6 +318,7 @@ class RequestSignatureService {
 		if (!empty($data['uuid'])) {
 			$file = $this->fileMapper->getByUuid($data['uuid']);
 			CampaignPolicy::assertEditable($file);
+			\OCP\Server::get(LetterheadService::class)->assertSignerEdit($file, $data ?? []);
 			$this->updateSignatureFlowIfAllowed($file, $data);
 			if (!empty($data['name'])) {
 				$file->setName($data['name']);
@@ -339,12 +340,14 @@ class RequestSignatureService {
 			}
 			if ($file !== null) {
 				CampaignPolicy::assertEditable($file);
+			\OCP\Server::get(LetterheadService::class)->assertSignerEdit($file, $data ?? []);
 				$this->updateSignatureFlowIfAllowed($file, $data);
 				return $this->fileStatusService->updateFileStatusIfUpgrade($file, $data['status'] ?? 0);
 			}
 		}
 
 		$node = $this->fileService->getNodeFromData($data);
+		if ($node instanceof \OCP\Files\File && $node->getMimeType() === 'application/pdf') \OCP\Server::get(LetterheadUploadPolicy::class)->assertMayUpload($node->getContent());
 
 		$file = new FileEntity();
 		$file->setNodeId($node->getId());
@@ -590,8 +593,10 @@ class RequestSignatureService {
 	}
 
 	public function unassociateToUser(int $fileId, int $signRequestId): void {
+		if (!empty(($this->fileMapper->getById($fileId)->getMetadata() ?? [])['letterhead'])) throw new \OCP\Files\NotPermittedException('The approved signer list is fixed. Create a new letterhead document to change recipients.');
 		$file = $this->fileMapper->getById($fileId);
 		CampaignPolicy::assertEditable($file);
+			\OCP\Server::get(LetterheadService::class)->assertSignerEdit($file, $data ?? []);
 		$this->documentArchive->assertCanDelete($file);
 		$signRequest = $this->signRequestMapper->getByFileIdAndSignRequestId($fileId, $signRequestId);
 		$deletedOrder = $signRequest->getSigningOrder();

@@ -67,7 +67,9 @@ class NotificationListener implements IEventListener {
 		FileEntity $libreSignFile,
 		IIdentifyMethod $identifyMethod,
 	): void {
-		$actor = $this->userSession->getUser();
+		// Cron jobs identify the recorded sender for display, without creating a user session.
+		$actor = $this->userSession->getUser() ?? \OCP\Server::get(\OCP\IUserManager::class)->get($libreSignFile->getUserId());
+		if ($identifyMethod->getEntity()->getIdentifierKey() !== 'account') return;
 		if (!$actor instanceof IUser) {
 			return;
 		}

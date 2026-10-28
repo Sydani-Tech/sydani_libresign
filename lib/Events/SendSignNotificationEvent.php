@@ -19,8 +19,11 @@ class SendSignNotificationEvent extends Event {
 		private SignRequest $signRequest,
 		private FileEntity $libreSignFile,
 		private IIdentifyMethod $identifyMethod,
+		private bool $reminder = false,
 	) {
 	}
+
+	public function isReminder(): bool { return $this->reminder; }
 
 	public function getLibreSignFile(): FileEntity {
 		return $this->libreSignFile;

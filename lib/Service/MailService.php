@@ -115,7 +115,17 @@ class MailService {
 		}
 	}
 
-	public function notifySignedUser(SignRequest $signRequest, string $email, File $libreSignFile, string $displayName): void {
+	public function notifyReminder(SignRequest $data, string $email): void {
+        $template = $this->mailer->createEMailTemplate('libresign.signatureReminder');
+        $template->setSubject($this->l10n->t('LibreSign: Reminder — your signature is pending'));
+        $template->addHeader();$template->addHeading($this->l10n->t('Signature reminder'),false);
+        $template->addBodyText($this->l10n->t('This document is awaiting your signature:'));
+        $template->addBodyText($this->getFileById($data->getFileId())->getName());
+        $template->addBodyButton($this->l10n->t('Review and sign'),$this->urlGenerator->linkToRouteAbsolute('libresign.page.sign',['uuid'=>$data->getUuid()]));
+        $message=$this->mailer->createMessage();$message->setTo([$email=>$data->getDisplayName()?:$email]);$message->useTemplate($template);$this->mailer->send($message);
+    }
+
+    public function notifySignedUser(SignRequest $signRequest, string $email, File $libreSignFile, string $displayName): void {
 		$emailTemplate = $this->mailer->createEMailTemplate('settings.TestEmail');
 		// TRANSLATORS The subject of the email that is sent after a document has been signed by a user. This email is sent to the person who requested the signature.
 		$emailTemplate->setSubject($this->l10n->t('LibreSign: A file has been signed'));

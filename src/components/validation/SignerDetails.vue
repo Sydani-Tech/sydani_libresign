@@ -22,9 +22,9 @@
 					<span>{{ t('libresign', 'Not signed yet') }}</span>
 				</template>
 				<template v-else>
-					<strong>{{ t('libresign', 'Certificate expires:') }}</strong>
-					<span v-if="signer.valid_to">
-						{{ dateFromSqlAnsi(signer.valid_to) }}
+					<strong>{{ t('libresign', 'Signature recorded:') }}</strong>
+					<span v-if="signer.signed">
+						{{ dateFromSqlAnsi(signer.signed) }}
 					</span>
 					<span v-else>{{ t('libresign', 'Certificate expiry not available') }}</span>
 				</template>
@@ -201,7 +201,9 @@
 			</NcListItem>
 		</div>
 
-		<!-- Hash Algorithm, Certificate Hash -->
+		<NcListItem v-if="isOpen && signer.valid_to" class="extra" compact><template #name><strong>{{ t('libresign','Certificate expires:') }}</strong>{{ dateFromSqlAnsi(signer.valid_to) }}</template></NcListItem>
+        <p v-if="isOpen && getValidityStatus(signer)==='expired'" class="certificate-expiry-note">{{ t('libresign','This certificate has expired. Expiry does not mean the document was changed. Consult the long-term verification result for historical validity.') }}</p>
+        <!-- Hash Algorithm, Certificate Hash -->
 		<NcListItem v-if="isOpen && signer.signatureTypeSN" class="extra" compact>
 			<template #name>
 				<strong>{{ t('libresign', 'Hash algorithm:') }}</strong>

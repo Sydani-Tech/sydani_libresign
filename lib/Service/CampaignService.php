@@ -39,11 +39,11 @@ class CampaignService {
 	) {
 	}
 
-	public function list(IUser $user, int $page = 1): array {
+	public function list(IUser $user, int $page = 1, array $filter = []): array {
 		$this->access->assertCreator($user);
 		$page = max(1, $page);
-		$result = $this->store->campaigns($this->access->isAdmin($user) ? null : $user->getUID(), $page);
-		return ['data' => array_map(fn ($row) => $this->present($row, false), $result['rows']), 'total' => $result['total'], 'page' => $page, 'length' => 25];
+		$result = $this->store->campaigns($this->access->isAdmin($user) ? null : $user->getUID(), $page, 25, $filter);
+		return ['data' => array_map(fn ($row) => $this->present($row, false), $result['rows']), 'total' => $result['total'], 'page' => $page, 'length' => 25, 'scope' => $this->access->isAdmin($user) ? 'organisation' : 'personal', 'senders' => array_map(fn ($uid) => ['id' => $uid, 'name' => $this->users->get($uid)?->getDisplayName() ?? $uid], $this->store->owners($this->access->isAdmin($user) ? null : $user->getUID()))];
 	}
 
 	public function get(IUser $user, int $id): array {
@@ -215,7 +215,7 @@ class CampaignService {
 				if (empty($row['file_id'])) $row = $this->createRequest($c, $row, $owner);
 				$file = $this->fileMapper->getById((int)$row['file_id']);
 				$this->policy->assertCanSign($file);
-				if ($file->getStatus() !== 3) $this->notifyPending($file);
+				if ($file->getStatus() !== 3) $this->notifyPending($file, !empty($row['notified_at']));
 				$this->store->update('libresign_camp_rcpt', (int)$row['id'], ['queue_state' => 'pending', 'notify_pending' => 0,
 					'notified_at' => $row['notified_at'] ?? time(), 'last_notified_at' => time(), 'last_error' => null, 'attempts' => 0, 'lease_token' => null, 'lease_until' => null], ['lease_token' => $row['lease_token']]);
 				$result['processed']++;
@@ -274,12 +274,12 @@ class CampaignService {
 		}
 	}
 
-	private function notifyPending(File $file): void {
+	private function notifyPending(File $file, bool $reminder = false): void {
 		$this->identify->clearCache();
 		foreach ($this->signRequests->getByFileId($file->getId()) as $request) {
 			if ($request->getSigned() || $request->getStatus() !== 1) continue;
 			foreach ($this->identify->getIdentifyMethodsFromSignRequestId($request->getId()) as $instances) {
-				foreach ($instances as $method) { $method->willNotifyUser(true); $method->notify(); }
+				foreach ($instances as $method) { if ($reminder) { \OCP\Server::get(\OCP\EventDispatcher\IEventDispatcher::class)->dispatchTyped(new \OCA\Libresign\Events\SendSignNotificationEvent($request, $file, $method, true)); } else { $method->willNotifyUser(true); $method->notify(); } }
 			}
 		}
 	}

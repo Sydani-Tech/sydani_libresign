@@ -19,7 +19,8 @@
 			<NcAppNavigationItem v-if="canCreateCampaign" id="campaign" :to="{name: 'campaign'}" :name="t('libresign', 'Campaign')" @click="unselectFile">
 				<template #icon><NcIconSvgWrapper :path="mdiFileSign" :size="20" /></template>
 			</NcAppNavigationItem>
-			<NcAppNavigationItem id="fileslist"
+			<NcAppNavigationItem id="letterheads" :to="{name:'letterheads'}" :name="t('libresign','Letterheads')" @click="unselectFile"><template #icon><NcIconSvgWrapper :path="mdiFileCheck" :size="20" /></template></NcAppNavigationItem>
+            <NcAppNavigationItem id="fileslist"
 				:to="{ name: 'fileslist' }"
 				:name="t('libresign', 'Files')"
 				@click="unselectFile">

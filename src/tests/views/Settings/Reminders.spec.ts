@@ -1,128 +1,18 @@
-/*
- * SPDX-FileCopyrightText: 2026 LibreSign contributors
- * SPDX-License-Identifier: AGPL-3.0-or-later
- */
-
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { interpolateL10n } from '../../testHelpers/l10n.js'
-import { flushPromises, mount } from '@vue/test-utils'
-
-import axios from '@nextcloud/axios'
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import {describe,it,expect,vi,beforeEach} from 'vitest'
+import {mount,flushPromises} from '@vue/test-utils'
 import Reminders from '../../../views/Settings/Reminders.vue'
-
-vi.mock('debounce', () => ({
-	default: <T extends (...args: any[]) => any>(fn: T) => fn,
-}))
-
-vi.mock('@nextcloud/axios', () => ({
-	default: {
-		get: vi.fn(),
-		post: vi.fn(),
-	},
-}))
-
-vi.mock('@nextcloud/moment', () => ({
-	default: vi.fn((value: number) => ({
-		format: vi.fn((pattern: string) => `formatted:${value}:${pattern}`),
-	})),
-}))
-
-vi.mock('@nextcloud/router', () => ({
-	generateOcsUrl: vi.fn((path: string) => path),
-}))
-
-vi.mock('@nextcloud/l10n', () => globalThis.mockNextcloudL10n({
-	t: (_app: string, text: string, vars?: Record<string, string | number>) => interpolateL10n(text, vars),
-	n: (_app: string, singular: string, plural: string, count: number, vars?: Record<string, string | number>) => {
-		const template = count === 1 ? singular : plural
-		return interpolateL10n(template, { count, ...(vars ?? {}) })
-	},
-	translate: (_app: string, text: string, vars?: Record<string, string | number>) => interpolateL10n(text, vars),
-	translatePlural: (_app: string, singular: string, plural: string, count: number, vars?: Record<string, string | number>) => {
-		const template = count === 1 ? singular : plural
-		return interpolateL10n(template, { count, ...(vars ?? {}) })
-	},
-}))
-
-describe('Reminders.vue', () => {
-	beforeEach(() => {
-		vi.clearAllMocks()
-		vi.mocked(axios.get).mockResolvedValue({
-			data: {
-				ocs: {
-					data: {
-						days_before: '2',
-						days_between: '5',
-						max: '3',
-						send_timer: '14:30:00',
-						next_run: '2026-03-06 12:00:00',
-					},
-				},
-			},
-		})
-		vi.mocked(axios.post).mockResolvedValue({
-			data: {
-				ocs: {
-					data: {
-						days_before: 0,
-						days_between: 0,
-						max: 0,
-						send_timer: '',
-						next_run: null,
-					},
-				},
-			},
-		})
-	})
-
-	function createWrapper() {
-		return mount(Reminders, {
-			global: {
-				stubs: {
-					NcSettingsSection: { template: '<div><slot /></div>' },
-					NcTextField: true,
-					NcCheckboxRadioSwitch: true,
-					NcLoadingIcon: true,
-					NcDateTimePickerNative: true,
-				},
-			},
-		})
-	}
-
-	it('loads reminder settings on mount and computes the formatted next run', async () => {
-		const wrapper = createWrapper()
-		await flushPromises()
-
-		expect(axios.get).toHaveBeenCalledWith('/apps/libresign/api/v1/admin/reminder')
-		expect(wrapper.vm.reminderDaysBefore).toBe(2)
-		expect(wrapper.vm.reminderDaysBetween).toBe(5)
-		expect(wrapper.vm.reminderMax).toBe(3)
-		expect(wrapper.vm.reminderState).toBe(true)
-		expect(wrapper.vm.nextRunFormatted).toContain('formatted:')
-	})
-
-	it('resets reminder fields and persists zeros when reminders are turned off', async () => {
-		const wrapper = createWrapper()
-		await flushPromises()
-
-		wrapper.vm.reminderState = false
-		await flushPromises()
-
-		expect(axios.post).toHaveBeenCalledWith('/apps/libresign/api/v1/admin/reminder', {
-			daysBefore: 0,
-			daysBetween: 0,
-			max: 0,
-			sendTimer: '',
-		})
-		expect(wrapper.vm.reminderDaysBefore).toBe(0)
-		expect(wrapper.vm.reminderDaysBetween).toBe(0)
-		expect(wrapper.vm.reminderMax).toBe(0)
-		expect(wrapper.vm.formatHourMinute(wrapper.vm.reminderSendTimer)).toBe('10:00')
-	})
-
-	it('formats a reminder send time as HH:mm', () => {
-		const wrapper = createWrapper()
-
-		expect(wrapper.vm.formatHourMinute(new Date('2022-10-10 09:05:00'))).toBe('09:05')
-	})
+import {campaignGet,campaignPost} from '../../../services/campaigns'
+vi.mock('@nextcloud/l10n',()=>globalThis.mockNextcloudL10n())
+vi.mock('../../../services/campaigns',async()=>({...await vi.importActual('../../../services/campaigns'),campaignGet:vi.fn(),campaignPost:vi.fn()}))
+vi.mock('@nextcloud/password-confirmation',()=>({confirmPassword:vi.fn()}))
+vi.mock('@nextcloud/vue/components/NcSettingsSection',()=>({default:{template:'<section><slot /></section>'}}))
+vi.mock('@nextcloud/vue/components/NcButton',()=>({default:{props:['type','disabled'],template:'<button :type="type" :disabled="disabled"><slot /></button>'}}))
+const policy={enabled:false,intervalHours:24,firstAfterDays:1,maxReminders:10,stopAfterDays:30,sendTime:'09:00',secondTime:'17:00',until:'',timezone:'Africa/Lagos'}
+beforeEach(()=>{vi.clearAllMocks();vi.mocked(campaignGet).mockResolvedValue({...policy});vi.mocked(campaignPost).mockResolvedValue({...policy})})
+describe('Administrator reminder settings',()=>{
+ it('loads the global policy without enabling reminders',async()=>{const w=mount(Reminders);await flushPromises();expect(campaignGet).toHaveBeenCalledWith('admin/reminder-schedule');expect(w.find('input[type=checkbox]').element.checked).toBe(false);expect(campaignPost).not.toHaveBeenCalled();w.unmount()})
+ it('shows a second WAT send time for twice daily',async()=>{const w=mount(Reminders);await flushPromises();await w.find('select').setValue('12');expect(w.findAll('input[type=time]')).toHaveLength(2);expect(w.text()).toContain('Second send time (WAT)');w.unmount()})
+ it('saves limits, duration and an explicit stop date through the admin endpoint',async()=>{const w=mount(Reminders);await flushPromises();await w.find('input[type=date]').setValue('2026-12-31');await w.find('form').trigger('submit');await flushPromises();expect(campaignPost).toHaveBeenCalledWith('admin/reminder-schedule',{policy:expect.objectContaining({until:'2026-12-31',maxReminders:10,stopAfterDays:30,timezone:'Africa/Lagos'})});expect(w.text()).toContain('Reminder settings saved.');w.unmount()})
+ it('makes saving failures visible',async()=>{vi.mocked(campaignPost).mockRejectedValue({response:{data:{message:'Invalid reminder interval'}}});const w=mount(Reminders);await flushPromises();await w.find('form').trigger('submit');await flushPromises();expect(w.find('[role=alert]').text()).toContain('Invalid reminder interval');w.unmount()})
 })

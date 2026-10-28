@@ -146,6 +146,7 @@ abstract class AbstractIdentifyMethod implements IIdentifyMethod {
 		}
 		$signRequest = $this->identifyService->getSignRequestMapper()->getById($this->getEntity()->getSignRequestId());
 		$libresignFile = $this->identifyService->getFileMapper()->getById($signRequest->getFileId());
+		if (!empty(($libresignFile->getMetadata() ?? [])['letterhead'])) { \OCP\Server::get(\OCA\Libresign\Service\LetterheadService::class)->assertRelease($libresignFile); }
 		if (!empty(($libresignFile->getMetadata() ?? [])['campaign'])
 			&& !\OCP\Server::get(\OCA\Libresign\Service\CampaignPolicy::class)->canSign($libresignFile)) {
 			return false;
@@ -182,6 +183,11 @@ abstract class AbstractIdentifyMethod implements IIdentifyMethod {
 	protected function throwIfFileNotFound(): void {
 		$signRequest = $this->identifyService->getSignRequestMapper()->getById($this->getEntity()->getSignRequestId());
 		$fileEntity = $this->identifyService->getFileMapper()->getById($signRequest->getFileId());
+		if (!empty(($fileEntity->getMetadata() ?? [])['letterhead'])) {
+			\OCP\Server::get(\OCA\Libresign\Service\LetterheadService::class)->assertRelease($fileEntity);
+			\OCP\Server::get(\OCA\Libresign\Service\DocumentArchiveService::class)->resolve($fileEntity);
+			return;
+		}
 		if (!empty(($fileEntity->getMetadata() ?? [])['campaign'])) {
 			\OCP\Server::get(\OCA\Libresign\Service\CampaignPolicy::class)->assertCanSign($fileEntity);
 			\OCP\Server::get(\OCA\Libresign\Service\DocumentArchiveService::class)->resolve($fileEntity);

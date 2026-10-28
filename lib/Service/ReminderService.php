@@ -160,6 +160,8 @@ class ReminderService {
 	}
 
 	public function sendReminders(): void {
+		$schedule = \OCP\Server::get(ScheduledReminderService::class);
+		if ($schedule->configured()) { $schedule->send(); return; }
 		$daysBefore = $this->appConfig->getValueInt(Application::APP_ID, 'reminder_days_before', 0);
 		if ($daysBefore <= 0) {
 			return;

@@ -36,7 +36,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import CampaignRecipientImport from './CampaignRecipientImport.vue'
 import {campaignGet, campaignPost, campaignError, type CampaignRecipient} from '../../services/campaigns'
-const props = defineProps<{disabled?: boolean, allowGroups?: boolean, existing?: CampaignRecipient[], counter?: CampaignRecipient | null}>()
+const props = defineProps<{apiBase?: string, disabled?: boolean, allowGroups?: boolean, existing?: CampaignRecipient[], counter?: CampaignRecipient | null}>()
 const emit = defineEmits<{(event: 'add', recipient: CampaignRecipient): void, (event: 'add-many', recipients: CampaignRecipient[]): void}>()
 const methods = computed(() => [{id:'internal', label:t('libresign','Add Internal Users'), icon:mdiAccountMultipleOutline}, ...(props.allowGroups ? [{id:'group', label:t('libresign','Add from a Group'), icon:mdiAccountGroupOutline}] : []), {id:'external', label:t('libresign','Add an External User'), icon:mdiAccountPlusOutline}, ...(props.allowGroups ? [{id:'import', label:t('libresign','Add from an Excel File'), icon:mdiFileExcelOutline}] : [])])
 const method = ref('internal'), query = ref(''), name = ref(''), email = ref('')
@@ -51,13 +51,13 @@ function scheduleSearch() {
 	if (!query.value.trim()) { searching.value = false; return }
 	searching.value = true
 	timer = setTimeout(async () => {
-		try {const result = await campaignGet<CampaignRecipient[]>('campaign/users', {search:query.value}); if (generation === current) {users.value=result; searched.value=true}}
+		try {const result = await campaignGet<CampaignRecipient[]>((props.apiBase || 'campaign')+'/users', {search:query.value}); if (generation === current) {users.value=result; searched.value=true}}
 		catch(e) {if(generation === current) fail(e)} finally {if(generation === current) searching.value=false}
 	},300)
 }
 async function resolve(recipient: CampaignRecipient) {
 	resolving.value=true;error.value=''
-	try {const result=await campaignPost<CampaignRecipient>('campaign/resolve',{recipient});emit('add',result);name.value='';email.value=''} catch(e){fail(e)} finally{resolving.value=false}
+	try {const result=await campaignPost<CampaignRecipient>((props.apiBase || 'campaign')+'/resolve',{recipient});emit('add',result);name.value='';email.value=''} catch(e){fail(e)} finally{resolving.value=false}
 }
 async function choose(user: CampaignRecipient) {await resolve(user)}
 async function add() {await resolve({name:name.value,email:email.value})}

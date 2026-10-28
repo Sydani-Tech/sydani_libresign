@@ -13,6 +13,7 @@
    <option value="completed">{{ t('libresign', 'Completed') }}</option>
    <option v-if="!archive" value="signing">{{ t('libresign', 'Signing in progress') }}</option>
   </select></label>
+  <label v-if="archive">{{ t('libresign','Document type') }}<select v-model="draft.letterhead"><option value="">{{ t('libresign','All documents') }}</option><option value="yes">{{ t('libresign','Letterheaded documents') }}</option><option value="no">{{ t('libresign','Other documents') }}</option></select></label>
   <label>{{ t('libresign', 'Date filter') }}<select v-model="draft.dateBy"><option value="requested">{{ t('libresign', 'Date Requested') }}</option><option value="completed">{{ t('libresign', 'Date Completed') }}</option><option v-if="!archive" value="created">{{ t('libresign', 'Date Created') }}</option></select></label>
   <label>{{ t('libresign', 'From') }}<input v-model="draft.fromDate" type="date"></label>
   <label>{{ t('libresign', 'To') }}<input v-model="draft.toDate" type="date"></label>

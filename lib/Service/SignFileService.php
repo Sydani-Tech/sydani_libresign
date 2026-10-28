@@ -432,6 +432,7 @@ class SignFileService {
 	}
 
 	public function sign(): void {
+		if (isset($this->libreSignFile) && !empty(($this->libreSignFile->getMetadata() ?? [])['letterhead'])) { \OCP\Server::get(LetterheadService::class)->assertRelease($this->libreSignFile); }
 		if (isset($this->libreSignFile) && !empty(($this->libreSignFile->getMetadata() ?? [])['campaign'])) {
 			\OCP\Server::get(CampaignPolicy::class)->assertCanSign($this->libreSignFile);
 		}
@@ -473,6 +474,7 @@ class SignFileService {
 	}
 
 	public function signSingleFile(FileEntity $libreSignFile, SignRequestEntity $signRequest): void {
+		if (!empty(($libreSignFile->getMetadata() ?? [])['letterhead'])) { \OCP\Server::get(LetterheadService::class)->assertRelease($libreSignFile); }
 		if (!empty(($libreSignFile->getMetadata() ?? [])['campaign'])) {
 			\OCP\Server::get(CampaignPolicy::class)->assertCanSign($libreSignFile);
 		}
@@ -1209,6 +1211,13 @@ class SignFileService {
 		}
 		// Campaign originals are immutable app-owned snapshots, not Files owned
 		// by the sender. Do not dereference a nonexistent personal-file owner.
+		$letterhead = ($this->libreSignFile->getMetadata() ?? [])['letterhead'] ?? null;
+		if ($letterhead !== null) {
+			\OCP\Server::get(LetterheadService::class)->assertRelease($this->libreSignFile);
+			$originalFile = $this->documentArchive->resolve($this->libreSignFile, false);
+			if (!hash_equals((string)($letterhead['sourceHash'] ?? ''), hash('sha256', $originalFile->getContent()))) throw new LibresignException('The letterheaded PDF no longer matches its approval.');
+			return $this->fileToSign = $this->getPdfToSign($originalFile);
+		}
 		$campaign = ($this->libreSignFile->getMetadata() ?? [])['campaign'] ?? null;
 		if ($campaign !== null) {
 			\OCP\Server::get(CampaignPolicy::class)->assertCanSign($this->libreSignFile);

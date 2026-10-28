@@ -8,9 +8,14 @@
 		<p v-else-if="!canCreate" role="alert">{{ t('libresign', 'You do not have campaign access. An administrator can authorise your group in LibreSign settings.') }}</p>
 		<template v-else>
 			<template v-if="!selected && !creating">
+                <form class="campaign-filters" @submit.prevent="applyFilters"><p class="campaign-filters__scope">{{ organisationScope ? t('libresign', 'Showing campaigns from all senders in the organisation') : t('libresign', 'Showing campaigns you created') }}</p>
+                <div class="campaign-filter-grid"><label>{{ t('libresign','Campaign name') }}<input v-model="filters.name" type="search"></label><label>{{ t('libresign','Document version') }}<input v-model="filters.version" type="search"></label><SenderSelect v-model="filters.sender" :options="senders" /><label>{{ t('libresign','Status') }}<select v-model="filters.status"><option value="">{{ t('libresign','All statuses') }}</option><option value="draft">{{ t('libresign','Draft') }}</option><option value="active">{{ t('libresign','Active · incomplete') }}</option><option value="completed">{{ t('libresign','Completed') }}</option><option value="cancelled">{{ t('libresign','Cancelled') }}</option><option value="overdue">{{ t('libresign','Overdue') }}</option></select></label>
+                <label>{{ t('libresign','Recipient Name') }}<input v-model="filters.recipientName" type="search"></label><label>{{ t('libresign','Recipient Email') }}<input v-model="filters.recipientEmail" type="search"></label><label>{{ t('libresign','Recipient type') }}<select v-model="filters.kind"><option value="">{{ t('libresign','Internal and external') }}</option><option value="internal">{{ t('libresign','Internal') }}</option><option value="external">{{ t('libresign','External') }}</option></select></label>
+                <label>{{ t('libresign','Date filter') }}<select v-model="filters.dateBy"><option value="created">{{ t('libresign','Date Created') }}</option><option value="requested">{{ t('libresign','Date Requested') }}</option><option value="completed">{{ t('libresign','Date Completed') }}</option><option value="deadline">{{ t('libresign','Deadline') }}</option></select></label><label>{{ t('libresign','From') }}<input v-model="filters.from" type="date"></label><label>{{ t('libresign','To') }}<input v-model="filters.to" type="date"></label><label>{{ t('libresign','Sort by') }}<select v-model="filters.sortBy"><option value="created">{{ t('libresign','Date Created') }}</option><option value="requested">{{ t('libresign','Date Requested') }}</option><option value="completed">{{ t('libresign','Date Completed') }}</option><option value="deadline">{{ t('libresign','Deadline') }}</option><option value="name">{{ t('libresign','Campaign name') }}</option></select></label><label>{{ t('libresign','Order') }}<select v-model="filters.direction"><option value="desc">{{ t('libresign','Descending') }}</option><option value="asc">{{ t('libresign','Ascending') }}</option></select></label></div>
+                <div class="campaign-actions"><NcButton type="submit" variant="primary" :disabled="busy">{{ t('libresign','Apply filters') }}</NcButton><NcButton :disabled="busy" @click="resetFilters">{{ t('libresign','Reset') }}</NcButton></div></form>
 				<div class="campaign-table-scroll"><table><thead><tr><th>{{ t('libresign', 'Campaign') }}</th><th>{{ t('libresign', 'Sender') }}</th><th>{{ t('libresign', 'Status') }}</th><th>{{ t('libresign', 'Completion') }}</th><th>{{ t('libresign', 'Outstanding') }}</th><th>{{ t('libresign', 'Date Requested') }}</th><th>{{ t('libresign', 'Deadline') }}</th></tr></thead><tbody>
 					<tr v-for="campaign in campaigns" :key="campaign.id"><td><button class="campaign-link" type="button" @click="open(campaign.id)">{{ campaign.name }}</button><small>{{ t('libresign', 'Version') }} {{ campaign.version }}</small></td><td>{{ campaign.owner.name }}</td><td>{{ campaignState(campaign) }}</td><td><progress :value="campaign.summary.completed" :max="Math.max(1, campaign.summary.required)" :aria-label="t('libresign', 'Completion rate')" /><small>{{ campaign.summary.completed }} / {{ campaign.summary.required }} · {{ campaign.summary.completionRate }}%</small></td><td>{{ campaign.summary.pending }}<small v-if="campaign.summary.overdue">{{ campaign.summary.overdue }} {{ t('libresign', 'overdue') }}</small></td><td>{{ campaignDate(campaign.requestedAt) }}</td><td>{{ campaignDate(campaign.dueAt) }}</td></tr>
-					<tr v-if="!campaigns.length"><td colspan="7">{{ t('libresign', 'No campaigns yet. Create your first campaign to get started.') }}</td></tr>
+					<tr v-if="!campaigns.length"><td colspan="7">{{ t('libresign', 'No campaigns match these filters.') }}</td></tr>
 				</tbody></table></div>
 				<div class="campaign-pagination"><NcButton :disabled="busy || page <= 1" @click="changePage(-1)">{{ t('libresign', 'Previous') }}</NcButton><span>{{ page }} / {{ Math.max(1, Math.ceil(total / 25)) }}</span><NcButton :disabled="busy || page * 25 >= total" @click="changePage(1)">{{ t('libresign', 'Next') }}</NcButton></div>
 			</template>
@@ -58,6 +63,7 @@ import { mdiFilePdfBox } from '@mdi/js'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
+import SenderSelect from '../components/DocumentFilters/SenderSelect.vue'
 import CampaignDesigner from '../components/Request/CampaignDesigner.vue'
 import CampaignRecipientPicker from '../components/Request/CampaignRecipientPicker.vue'
 import { campaignGet, campaignPost, campaignPut, campaignUrl, campaignDate, campaignError, mergeCampaignRecipients, type Campaign, type CampaignDraft, type CampaignField, type CampaignRecipient } from '../services/campaigns'
@@ -67,6 +73,10 @@ const recipientError = ref(''); const counterError = ref(''); const readingPdf =
 let uploadGeneration = 0
 function reportError(message: string) { error.value = message; showError(message) }
 const campaigns = ref<Campaign[]>([]); const total = ref(0); const page = ref(1)
+const defaultFilters=()=>({name:'',version:'',sender:'',recipientName:'',recipientEmail:'',kind:'',status:'',dateBy:'created',from:'',to:'',sortBy:'created',direction:'desc'})
+const filters=reactive(defaultFilters()),appliedFilters=ref(defaultFilters()),senders=ref<Array<{id:string,name:string}>>([]),organisationScope=ref(false)
+async function applyFilters(){page.value=1;appliedFilters.value={...filters};await perform(loadList)}
+async function resetFilters(){Object.assign(filters,defaultFilters());await applyFilters()}
 const selected = ref<Campaign | null>(null); const creating = ref(false); const designer = ref(false); const confirmSend = ref(false)
 const dueDate = ref(''); const fileInputKey = ref(0); const recipientName = ref(''); const recipientEmail = ref(''); const recipientStatus = ref(''); const cancelReason = ref('')
 const exemptRecipient = ref<CampaignRecipient | null>(null); const exemptReason = ref('')
@@ -90,7 +100,7 @@ async function perform(action: () => Promise<void>) {
 	busy.value = true; error.value = ''; notice.value = ''
 	try { await action(); return true } catch (e) { reportError(campaignError(e)); return false } finally { busy.value = false }
 }
-async function loadList() { const data = await campaignGet<{data: Campaign[], total: number}>('campaigns', {page: page.value}); campaigns.value = data.data; total.value = data.total }
+async function loadList() { const data = await campaignGet<{data: Campaign[], total: number, senders?:Array<{id:string,name:string}>,scope?:string}>('campaigns', {page: page.value,filters:appliedFilters.value}); campaigns.value = data.data; total.value = data.total;senders.value=data.senders||[];organisationScope.value=data.scope==='organisation' }
 async function open(id: number) { await perform(async () => { setSelected(await campaignGet<Campaign>(`campaigns/${id}`)); recipientName.value = ''; recipientEmail.value = ''; recipientStatus.value = '' }) }
 async function refresh() { await perform(async () => { if (selected.value && selected.value.status !== 'draft') selected.value = await campaignGet<Campaign>(`campaigns/${selected.value.id}`); else if (!selected.value && !creating.value) await loadList() }) }
 function newCampaign() { uploadGeneration++; readingPdf.value = false; creating.value = true; selected.value = null; Object.assign(draft, blank()); dueDate.value = ''; error.value = ''; recipientError.value = ''; counterError.value = ''; notice.value = ''; fileInputKey.value++ }
@@ -163,7 +173,7 @@ table { width: 100%; border-collapse: collapse; } th, td { padding: 12px; border
 small { display: block; margin-top: 6px; color: var(--color-text-maxcontrast); }
 .campaign-link { background: none; border: 0; margin: 0; padding: 4px 0; min-height: 34px; color: var(--color-primary-element); text-align: start; font-weight: bold; }
 progress { width: 140px; accent-color: var(--color-primary-element); }
-.campaign-pagination { display: flex; justify-content: space-between; align-items: center; }
+.campaign-filters{padding:20px;border:1px solid var(--color-border);border-radius:14px;margin-bottom:20px;background:var(--color-background-hover);}.campaign-filters__scope{margin-bottom:16px;color:var(--color-text-maxcontrast);}.campaign-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;}.campaign-pagination { display: flex; justify-content: space-between; align-items: center; }
 .campaign-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 12px; margin-block: 20px; }
 .campaign-summary > div { padding: 18px; border: 1px solid var(--color-border); border-radius: var(--border-radius-large); background: var(--color-background-dark); }
 .campaign-summary strong { display: block; font-size: 28px; margin-bottom: 4px; color: var(--color-primary-element); }

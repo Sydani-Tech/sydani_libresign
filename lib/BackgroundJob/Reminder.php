@@ -20,8 +20,8 @@ class Reminder extends TimedJob {
 	) {
 		parent::__construct($time);
 
-		// Every day
-		$this->setInterval(60 * 60 * 24);
+		// Check due slots every fifteen minutes; the policy decides when to send.
+		$this->setInterval(60 * 15);
 		$this->setTimeSensitivity(IJob::TIME_SENSITIVE);
 	}
 

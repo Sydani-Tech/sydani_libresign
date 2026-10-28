@@ -651,10 +651,6 @@ function hasValidationIssues(signer: ValidationDisplaySigner) {
 	if (signer.valid_from && signer.valid_to && signer.signed && getValidityStatusAtSigning(signer) !== 'valid') {
 		return true
 	}
-	const currentStatus = getValidityStatus(signer)
-	if (currentStatus === 'expired' || currentStatus === 'expiring') {
-		return true
-	}
 	return false
 }
 

@@ -29,15 +29,50 @@ class CampaignStore {
 		return $row;
 	}
 
-	public function campaigns(?string $owner, int $page = 1, int $length = 25): array {
-		$q = $this->db->getQueryBuilder();
-		$q->from('libresign_campaign');
-		if ($owner !== null) $q->where($q->expr()->eq('owner_uid', $q->createNamedParameter($owner)));
-		$count = clone $q;
-		$total = (int)$count->select($count->func()->count('id'))->executeQuery()->fetchOne();
-		$rows = $q->select('*')->orderBy('id', 'DESC')->setFirstResult((max(1, $page) - 1) * $length)->setMaxResults($length)->executeQuery()->fetchAll();
-		return ['rows' => $rows, 'total' => $total];
-	}
+ public function campaigns(?string $owner, int $page = 1, int $length = 25, array $filter = []): array {
+  $f = CampaignFilters::normalise($filter);
+  $q = $this->db->getQueryBuilder(); $e=$q->expr();
+  $q->from('libresign_campaign','c');
+  if ($owner !== null) $q->where($e->eq('c.owner_uid',$q->createNamedParameter($owner)));
+  foreach (['name'=>'c.name','version'=>'c.version'] as $key=>$column) if ($f[$key] !== '') $q->andWhere($e->iLike($column,$q->createNamedParameter('%'.$this->db->escapeLikeParameter($f[$key]).'%')));
+  if ($f['sender'] !== '') $q->andWhere($e->eq('c.owner_uid',$q->createNamedParameter($f['sender'])));
+  // Correlated subqueries preserve pagination/count accuracy without expanding recipients.
+  $required=$this->db->getQueryBuilder(); $required->select('r.campaign_id')->from('libresign_camp_rcpt','r')->where("r.campaign_id = c.id")->andWhere("r.queue_state <> 'exempt'");
+  $pending=clone $required; $pending->leftJoin('r','libresign_file','f','f.id = r.file_id')->andWhere("(f.id IS NULL OR f.status <> 3 OR f.signed_hash IS NULL OR f.completed_at IS NULL)");
+  $complete="(c.status = 'active' AND EXISTS (".$required->getSQL().") AND NOT EXISTS (".$pending->getSQL()."))";
+  $completedDate=$this->db->getQueryBuilder(); $completedDate->select($completedDate->createFunction('MAX(f.completed_at)'))->from('libresign_camp_rcpt','r')->innerJoin('r','libresign_file','f','f.id = r.file_id')->where('r.campaign_id = c.id')->andWhere("r.queue_state <> 'exempt'");
+  $completion="(CASE WHEN ".$complete." THEN (".$completedDate->getSQL().") ELSE NULL END)";
+  if ($f['status'] === 'completed') $q->andWhere($q->createFunction($complete));
+  elseif (in_array($f['status'],['active','overdue'],true)) {
+   $q->andWhere("c.status = 'active'")->andWhere($q->createFunction('NOT '.$complete));
+   if ($f['status']==='overdue') $q->andWhere($e->lt('c.due_at',$q->createNamedParameter(time(),IQueryBuilder::PARAM_INT)));
+  } elseif ($f['status'] !== '') $q->andWhere($e->eq('c.status',$q->createNamedParameter($f['status'])));
+  if ($f['recipientName'] !== '' || $f['recipientEmail'] !== '' || $f['kind'] !== '') {
+   $sub=$this->db->getQueryBuilder(); $sub->select('r.campaign_id')->from('libresign_camp_rcpt','r');
+   foreach (['recipientName'=>'r.name','recipientEmail'=>'r.email'] as $key=>$column) if ($f[$key] !== '') $sub->andWhere($sub->expr()->iLike($column,$q->createNamedParameter('%'.$this->db->escapeLikeParameter($f[$key]).'%')));
+   if ($f['kind'] !== '') $sub->andWhere($f['kind']==='internal'?$sub->expr()->isNotNull('r.user_uid'):$sub->expr()->isNull('r.user_uid'));
+   $q->andWhere($e->in('c.id',$q->createFunction($sub->getSQL())));
+  }
+  $columns=['created'=>'c.created_at','requested'=>'c.published_at','deadline'=>'c.due_at','completed'=>$completion,'name'=>'c.name'];
+  $dateColumn=$columns[$f['dateBy']];
+  foreach (['from','to'] as $bound) if ($f[$bound.'Timestamp'] !== null) {
+   $stamp=$f[$bound.'Timestamp']+($bound==='to'?86400:0);
+   // File completion columns use UTC SQL timestamps; campaign dates use epoch seconds.
+   $value=$f['dateBy']==='completed'?gmdate('Y-m-d H:i:s',$stamp):$stamp;
+   $param=$q->createNamedParameter($value,is_int($value)?IQueryBuilder::PARAM_INT:IQueryBuilder::PARAM_STR);
+   $q->andWhere($bound==='from'?$e->gte($q->createFunction($dateColumn),$param):$e->lt($q->createFunction($dateColumn),$param));
+  }
+  $count=clone $q; $cursor=$count->select($count->func()->count('c.id'))->executeQuery(); $total=(int)$cursor->fetchOne(); $cursor->closeCursor();
+  $sort=$columns[$f['sortBy']]; $direction=strtoupper($f['direction']);
+  $rows=$q->select('c.*')->orderBy($q->createFunction('CASE WHEN '.$sort.' IS NULL THEN 1 ELSE 0 END'),'ASC')->addOrderBy($q->createFunction($sort),$direction)->addOrderBy('c.id',$direction)->setFirstResult((max(1,$page)-1)*$length)->setMaxResults($length)->executeQuery()->fetchAll();
+  return ['rows'=>$rows,'total'=>$total];
+ }
+
+ public function owners(?string $owner): array {
+  $q=$this->db->getQueryBuilder(); $q->selectDistinct('owner_uid')->from('libresign_campaign');
+  if ($owner !== null) $q->where($q->expr()->eq('owner_uid',$q->createNamedParameter($owner)));
+  return array_column($q->executeQuery()->fetchAll(),'owner_uid');
+ }
 
 	public function recipients(int $id): array {
 		$q = $this->db->getQueryBuilder();

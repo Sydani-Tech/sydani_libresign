@@ -8,6 +8,10 @@ use OCP\IUserManager;
 /** Adds reporting predicates only; callers must apply their own access scope first. */
 final class DocumentListFilter {
  public static function apply(IQueryBuilder $qb, IDBConnection $db, IUserManager $users, array $filter): void {
+  if (in_array($filter['letterhead'] ?? '', ['yes','no'], true)) {
+   $sub=$db->getQueryBuilder();$sub->select('file_id')->from('libresign_letter_doc')->where($sub->expr()->isNotNull('file_id'));
+   $qb->andWhere(($filter['letterhead']==='yes'?$qb->expr()->in('f.id',$qb->createFunction($sub->getSQL())):$qb->expr()->notIn('f.id',$qb->createFunction($sub->getSQL()))));
+  }
   if (!empty($filter['name'])) $qb->andWhere($qb->expr()->iLike('f.name', $qb->createNamedParameter('%' . $db->escapeLikeParameter($filter['name']) . '%')));
   if (!empty($filter['sender'])) $qb->andWhere($qb->expr()->eq('f.user_id', $qb->createNamedParameter($filter['sender'])));
 		// Keep both filters on the same participant; matching different people on

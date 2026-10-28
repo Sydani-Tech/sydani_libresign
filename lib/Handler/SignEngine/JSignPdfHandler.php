@@ -79,6 +79,7 @@ class JSignPdfHandler extends Pkcs12Handler {
 				throw new \Exception('The path ' . $tempPath . ' is not writtable. Fix this or change the LibreSign app setting jsignpdf_temp_path to a writtable path');
 			}
 			$jSignPdfJarPath = $this->appConfig->getValueString(Application::APP_ID, 'jsignpdf_jar_path', '/opt/jsignpdf-' . InstallService::JSIGNPDF_VERSION . '/JSignPdf.jar');
+			$jSignPdfJarPath = \OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->jar($jSignPdfJarPath);
 			if (!file_exists($jSignPdfJarPath)) {
 				throw new \Exception('Invalid JSignPdf jar path. Run occ libresign:install --jsignpdf');
 			}
@@ -254,12 +255,18 @@ class JSignPdfHandler extends Pkcs12Handler {
 
 	#[\Override]
 	public function getSignedContent(): string {
-		$normalizedPdf = $this->normalizePdfVersion($this->getInputFile()->getContent());
+		$inputPdf = $this->getInputFile()->getContent();
+		// Verify existing signatures offline before allowing any network-enabled augmentation.
+		if (\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->enabled() && $this->hasExistingSignatures($inputPdf)) \OCP\Server::get(\OCA\Libresign\Service\PadesVerificationService::class)->assertLt($inputPdf);
+		$normalizedPdf = $this->normalizePdfVersion($inputPdf);
 		$normalizedPdf = $this->pdfSigningFieldsService->fill($normalizedPdf, $this->getSignatureParams()['SigningFields'] ?? []);
 		$hashAlgorithm = $this->getHashAlgorithm($normalizedPdf);
 		$param = $this->getJSignParam();
 
 		$tsaParams = $this->listParamsToString($this->getTsaParameters());
+		foreach (\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->parameters() as $key => $value) {
+			foreach (is_array($value) ? $value : [$value] as $argument) $tsaParams .= ' ' . $key . ' ' . escapeshellarg($argument);
+		}
 
 		$visibleElements = $this->getVisibleElements();
 		$certParams = '';
@@ -279,6 +286,7 @@ class JSignPdfHandler extends Pkcs12Handler {
 
 		$signed = $this->signUsingVisibleElements($normalizedPdf, $hashAlgorithm);
 		if ($signed) {
+			if (\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->enabled()) \OCP\Server::get(\OCA\Libresign\Service\PadesVerificationService::class)->assertLt($signed);
 			return $signed;
 		}
 
@@ -290,7 +298,9 @@ class JSignPdfHandler extends Pkcs12Handler {
 		);
 		$jSignPdf = $this->getJSignPdf();
 		$jSignPdf->setParam($param);
-		return $this->signWrapper($jSignPdf);
+		$signed = $this->signWrapper($jSignPdf);
+		if (\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->enabled()) \OCP\Server::get(\OCA\Libresign\Service\PadesVerificationService::class)->assertLt($signed);
+		return $signed;
 	}
 
 	private function signUsingVisibleElements(string $normalizedPdf, string $hashAlgorithm): string {

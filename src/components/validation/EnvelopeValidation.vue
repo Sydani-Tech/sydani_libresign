@@ -10,9 +10,7 @@
 				<NcIconSvgWrapper :path="mdiPackageVariantClosed" :size="30" />
 				<h1>{{ t('libresign', 'Envelope information') }}</h1>
 			</div>
-			<NcNoteCard v-if="documentValidMessage" type="success">
-				{{ documentValidMessage }}
-			</NcNoteCard>
+			<NcNoteCard v-if="documentValidMessage" type="info">{{ t('libresign','Review each document’s integrity, certificate trust and long-term verification separately.') }}</NcNoteCard>
 			<NcNoteCard v-if="isAfterSigned" type="success">
 				{{ t('libresign', 'Congratulations you have digitally signed a document using LibreSign') }}
 			</NcNoteCard>
@@ -88,8 +86,9 @@
 						</template>
 					</NcListItem>
 					<div v-if="isFileOpen(fileIndex)" class="file-signers">
-						<DocumentValidationDetails
-							:document="file"
+						<a v-if="file.uuid" :href="generateUrl('/apps/libresign/validation/{uuid}', {uuid:file.uuid})">{{ t('libresign','Open full verification results') }}</a>
+                        <DocumentValidationDetails
+                            :document="file"
 						/>
 					</div>
 				</li>

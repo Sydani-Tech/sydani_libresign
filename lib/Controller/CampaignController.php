@@ -75,7 +75,7 @@ class CampaignController extends OCSController {
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
 	#[ApiRoute(verb: 'GET', url: '/api/{apiVersion}/campaigns', requirements: ['apiVersion' => '(v1)'])]
-	public function index(int $page = 1): DataResponse { return $this->respond(fn () => $this->campaigns->list($this->user(), $page)); }
+	public function index(int $page = 1, array $filters = []): DataResponse { return $this->respond(fn () => $this->campaigns->list($this->user(), $page, $filters)); }
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
