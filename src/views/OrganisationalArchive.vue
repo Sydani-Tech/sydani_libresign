@@ -10,7 +10,6 @@
 			<p v-if="!isAdmin" role="alert">{{ t('libresign', 'Administrator access required.') }}</p>
 			<template v-else>
 				<DocumentFilters :model-value="filters" :senders="senders" archive :loading="loading" @apply="applyFilters" />
-				<p class="archive-date-note">{{ t('libresign', 'Older requests may not have a recorded Date Requested. These are shown as Not recorded, never replaced with the upload date.') }}</p>
 				<p v-if="error" role="alert" class="archive-error">{{ error }}</p>
 				<div v-if="loading" role="status" aria-live="polite"><NcLoadingIcon />{{ t('libresign', 'Loading archive…') }}</div>
 				<div class="archive-table-scroll" :aria-busy="loading">
@@ -142,7 +141,6 @@ onMounted(load)
 .archive-filters label { display: flex; flex-direction: column; gap: 6px; }
 .archive-filters input, .archive-filters select { width: 100%; min-height: 44px; }
 .archive-filter-actions { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; }
-.archive-date-note { color: var(--color-text-maxcontrast); margin-block: 12px 20px; }
 .archive-error { color: var(--color-error); }
 .archive-table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
