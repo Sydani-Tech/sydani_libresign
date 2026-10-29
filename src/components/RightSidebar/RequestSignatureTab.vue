@@ -16,7 +16,7 @@
 		<NcNoteCard v-if="shouldLoadDetail && isLoadingFileDetail" type="info">
 			{{ t('libresign', 'Loading signer details\u00A0…') }}
 		</NcNoteCard>
-		<NcButton v-if="filesStore.canAddSigner() && !isOriginalFileDeleted"
+		<NcButton v-if="!fixedRecipients && filesStore.canAddSigner() && !isOriginalFileDeleted"
 			:variant="hasSigners ? 'secondary' : 'primary'"
 			@click="addSigner">
 			<template #icon>
@@ -39,7 +39,8 @@
 			{{ t('libresign', 'View signing order') }}
 		</NcButton>
 		<Signers v-if="!shouldLoadDetail || isCurrentFileDetailed"
-			:event="isOriginalFileDeleted ? '' : 'libresign:edit-signer'"
+			:read-only="fixedRecipients"
+			:event="isOriginalFileDeleted || fixedRecipients ? '' : 'libresign:edit-signer'"
 			@signing-order-changed="debouncedSave">
 			<template #actions="{signer, closeActions}">
 				<template v-if="!isOriginalFileDeleted">
@@ -166,7 +167,7 @@
 				{{ t('libresign', 'Open file') }}
 			</NcButton>
 		</NcFormBox>
-		<VisibleElements />
+		<VisibleElements :allow-sign="!useModal" />
 		<NcModal v-if="modalSrc"
 			size="full"
 			:name="fileName"
@@ -374,8 +375,10 @@ defineOptions({
 
 const props = withDefaults(defineProps<{
 	useModal?: boolean
+	fixedRecipients?: boolean
 }>(), {
 	useModal: false,
+	fixedRecipients: false,
 })
 
 const filesStore = useFilesStore()
@@ -434,8 +437,8 @@ const isOriginalFileDeleted = computed(() => filesStore.isOriginalFileDeleted())
 const currentFile = computed<EditableRequestFile | null>(() => (filesStore.getFile() as EditableRequestFile | null) ?? null)
 const isCurrentFileDetailed = computed(() => currentFile.value?.detailsLoaded === true)
 const shouldLoadDetail = computed(() => totalSigners.value > 0)
-const showSigningOrderOptions = computed(() => !isOriginalFileDeleted.value && isCurrentFileDetailed.value && hasSigners.value && filesStore.canSave() && !isAdminFlowForced.value)
-const showPreserveOrder = computed(() => !isOriginalFileDeleted.value && isCurrentFileDetailed.value && totalSigners.value > 1 && filesStore.canSave() && !isAdminFlowForced.value)
+const showSigningOrderOptions = computed(() => !props.fixedRecipients && !isOriginalFileDeleted.value && isCurrentFileDetailed.value && hasSigners.value && filesStore.canSave() && !isAdminFlowForced.value)
+const showPreserveOrder = computed(() => !props.fixedRecipients && !isOriginalFileDeleted.value && isCurrentFileDetailed.value && totalSigners.value > 1 && filesStore.canSave() && !isAdminFlowForced.value)
 const showViewOrderButton = computed(() => !isOriginalFileDeleted.value && isCurrentFileDetailed.value && isOrderedNumeric.value && totalSigners.value > 1 && hasSigners.value)
 const shouldShowOrderedOptions = computed(() => isOrderedNumeric.value && totalSigners.value > 1)
 const currentUserDisplayName = computed(() => OC.getCurrentUser()?.displayName || '')
@@ -543,7 +546,7 @@ function isSignerSigned(signer: Partial<EditableRequestSigner>) {
 }
 
 const canEditSigningOrder = computed(() => (signer: Partial<EditableRequestSigner>) => {
-	if (isOriginalFileDeleted.value) {
+	if (props.fixedRecipients || isOriginalFileDeleted.value) {
 		return false
 	}
 	const minSigners = isAdminFlowForced.value ? 1 : 2
@@ -551,7 +554,7 @@ const canEditSigningOrder = computed(() => (signer: Partial<EditableRequestSigne
 })
 
 const canDelete = computed(() => (signer: Partial<EditableRequestSigner>) => {
-	if (isOriginalFileDeleted.value) {
+	if (props.fixedRecipients || isOriginalFileDeleted.value) {
 		return false
 	}
 	return filesStore.canSave() && !isSignerSigned(signer)
@@ -579,7 +582,7 @@ function canSignerActInOrder(signer: Partial<EditableRequestSigner>) {
 }
 
 const canCustomizeMessage = computed(() => (signer: Partial<EditableRequestSigner>) => {
-	if (isOriginalFileDeleted.value) {
+	if (props.fixedRecipients || isOriginalFileDeleted.value) {
 		return false
 	}
 	if (isSignerSigned(signer) || !signer.signRequestId || signer.me) {
@@ -599,7 +602,7 @@ const canCustomizeMessage = computed(() => (signer: Partial<EditableRequestSigne
 })
 
 const canRequestSignature = computed(() => (signer: Partial<EditableRequestSigner>) => {
-	if (isOriginalFileDeleted.value) {
+	if (props.fixedRecipients || isOriginalFileDeleted.value) {
 		return false
 	}
 	const file = filesStore.getFile()
@@ -616,7 +619,7 @@ const canRequestSignature = computed(() => (signer: Partial<EditableRequestSigne
 })
 
 const canSendReminder = computed(() => (signer: Partial<EditableRequestSigner>) => {
-	if (isOriginalFileDeleted.value) {
+	if ( isOriginalFileDeleted.value) {
 		return false
 	}
 	const file = filesStore.getFile()
@@ -1089,7 +1092,12 @@ async function save() {
 	await ensureCurrentFileDetail()
 	hasLoading.value = true
 	try {
-		await filesStore.saveOrUpdateSignatureRequest({})
+		const response = await filesStore.saveOrUpdateSignatureRequest({})
+		if (response && 'success' in response && response.success === false) {
+			showError(response.message || t('libresign', 'Failed to save signature request'))
+			hasLoading.value = false
+			return
+		}
 		emit('libresign:show-visible-elements', new CustomEvent('libresign:show-visible-elements'))
 	} catch (error: unknown) {
 		showRequestError(error, t('libresign', 'Failed to save signature request'))
@@ -1106,6 +1114,11 @@ async function confirmRequest() {
 	hasLoading.value = true
 	try {
 		const response = await filesStore.saveOrUpdateSignatureRequest({ status: 1 })
+		if (response && 'success' in response && response.success === false) {
+			showError(response.message || t('libresign', 'Failed to request signatures'))
+			hasLoading.value = false
+			return
+		}
 		showSuccess(t('libresign', response.message || 'Signature requested'))
 		showConfirmRequest.value = false
 	} catch (error: unknown) {

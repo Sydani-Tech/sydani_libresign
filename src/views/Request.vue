@@ -15,7 +15,11 @@
 				<File v-show="!!filesStore.selectedFileId"
 					status="0"
 					status-text="none" />
-				<ReqestPicker v-if="!sidebarStore.isVisible"
+				<aside v-if="!filesStore.selectedFileId && !sidebarStore.isVisible" class="letterhead-shortcut">
+ <p>{{ t('libresign', 'Need a letterhead? Start with a shared letterhead before requesting signatures.') }}</p>
+ <NcButton :to="{name:'letterheads',query:{new:'1'}}" variant="secondary">{{ t('libresign', 'Use a Letterhead') }}</NcButton>
+</aside>
+<ReqestPicker v-if="!sidebarStore.isVisible"
 					:inline="true" />
 			</div>
 		</div>
@@ -24,6 +28,8 @@
 <script setup lang="ts">
 import { t } from '@nextcloud/l10n'
 import { onBeforeUnmount, onMounted } from 'vue'
+
+import NcButton from '@nextcloud/vue/components/NcButton'
 
 import File from '../components/File/File.vue'
 import ReqestPicker from '../components/Request/RequestPicker.vue'
@@ -63,6 +69,8 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+.letterhead-shortcut { margin-bottom:24px; padding:18px; border:1px solid var(--color-border); border-radius:12px; background:var(--color-primary-element-light); }
+.letterhead-shortcut p { margin-bottom:12px; line-height:1.6; }
 .container{
 	display: flex;
 	flex-direction: row;

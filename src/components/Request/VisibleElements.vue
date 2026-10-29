@@ -75,7 +75,7 @@
 						{{ t('libresign', 'Save') }}
 					</NcButton>
 
-					<NcButton v-if="canSign && !signerSelected"
+					<NcButton v-if="allowSign && canSign && !signerSelected"
 						:variant="variantOfSignButton"
 						:wide="true"
 						@click="goToSign">
@@ -465,6 +465,8 @@ const normalizeVisibleElements = (elements: VisibleElementRecord[]): VisibleElem
 			},
 		} satisfies VisibleElementRecord]
 	})
+
+withDefaults(defineProps<{allowSign?:boolean}>(),{allowSign:true})
 
 defineOptions({
 	name: 'VisibleElements',
@@ -891,6 +893,11 @@ async function save() {
 
 	try {
 		const response = await filesStore.saveOrUpdateSignatureRequest({ visibleElements })
+		if ('success' in response && response.success === false) {
+			showError(response.message || t('libresign', 'An error occurred'))
+			loading.value = false
+			return false
+		}
 		const successMessage = typeof response.message === 'string' && response.message.length > 0
 			? response.message
 			: t('libresign', 'Settings saved')

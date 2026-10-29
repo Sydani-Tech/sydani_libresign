@@ -7,7 +7,7 @@
 		<div class="recipient-method-panel">
 			<template v-if="method === 'internal'">
 				<h4>{{ t('libresign', 'Add Internal Users') }}</h4><p>{{ t('libresign', 'Search active Nextcloud accounts by name or email, then add the people you need.') }}</p>
-				<label>{{ t('libresign', 'Find a Nextcloud user') }}<input v-model="query" type="search" :disabled="disabled || resolving" maxlength="200" :placeholder="t('libresign', 'Search by name or email')" @input="scheduleSearch"></label>
+				<label><span v-if="apiBase !== 'letterhead'">{{ t('libresign', 'Find a Nextcloud user') }}</span><input :aria-label="t('libresign', 'Search internal users')" v-model="query" type="search" :disabled="disabled || resolving" maxlength="200" :placeholder="t('libresign', 'Search by name or email')" @input="scheduleSearch"></label>
 				<p v-if="searching" role="status">{{ t('libresign', 'Searching…') }}</p>
 				<ul v-if="users.length" class="recipient-results"><li v-for="user in users" :key="user.uid"><div><strong>{{ user.name }}</strong><small>{{ user.email }}</small></div><NcButton :disabled="disabled || resolving || alreadySelected(user)" @click="choose(user)">{{ alreadySelected(user) ? t('libresign', 'Added') : t('libresign', 'Add user') }}</NcButton></li></ul>
 				<p v-else-if="searched && !searching">{{ t('libresign', 'No active accounts found. Use Add an External User if this person has no Nextcloud account.') }}</p>

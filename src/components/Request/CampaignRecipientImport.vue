@@ -2,7 +2,7 @@
 <template>
 	<div class="recipient-import">
 		<p>{{ t('libresign', 'Upload an Excel (.xlsx) or CSV file containing names and email addresses. Review the detected columns before adding recipients. Nothing is sent during import.') }}</p>
-		<label class="recipient-import__upload"><span>{{ filename || t('libresign', 'Choose Excel or CSV file') }}</span><small>{{ t('libresign', 'Up to 5 MB · 2000 recipients') }}</small><input aria-label="Recipient Excel or CSV file" type="file" accept=".xlsx,.csv" :disabled="disabled || busy" @change="upload"></label>
+		<FilePicker :label="t('libresign', 'Recipient Excel or CSV file')" :filename="filename" :hint="t('libresign', 'Excel or CSV · Up to 5 MB · 2000 recipients')" accept=".xlsx,.csv" :disabled="disabled || busy" @change="upload" />
 		<p v-if="busy" role="status">{{ t('libresign', 'Reading and validating recipients…') }}</p>
 		<template v-if="sheet">
 			<div class="recipient-import__mapping">
@@ -28,6 +28,7 @@
 import {computed, ref, watch} from 'vue'
 import {t} from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import FilePicker from '../FilePicker.vue'
 import {campaignPost, campaignError, type CampaignRecipient} from '../../services/campaigns'
 import {detectImportColumns, mapImportRows, type ImportSheet, type ImportRow} from '../../services/campaignImport'
 const props = defineProps<{disabled?: boolean, existing?: CampaignRecipient[], counter?: CampaignRecipient | null}>()

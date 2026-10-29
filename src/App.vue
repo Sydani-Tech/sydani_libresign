@@ -18,7 +18,8 @@
 				</template>
 			</NcEmptyContent>
 		</NcAppContent>
-		<RightSidebar />
+		<!-- Letterheads owns its inline signing panel and field-editor lifecycle. -->
+		<RightSidebar v-if="route.name !== 'letterheads'" />
 	</NcContent>
 </template>
 

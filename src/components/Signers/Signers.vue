@@ -61,8 +61,10 @@ function normalizeSignatureFlow(flow: SelectedFile['signatureFlow']): SignatureF
 
 const props = withDefaults(defineProps<{
 	event?: string
+	readOnly?: boolean
 }>(), {
 	event: '',
+	readOnly: false,
 })
 
 const emit = defineEmits<{
@@ -93,7 +95,7 @@ const isOrderedNumeric = computed(() => {
 	return flow === 'ordered_numeric'
 })
 
-const canReorder = computed(() => filesStore.canSave() && (signers.value?.length || 0) > 1)
+const canReorder = computed(() => !props.readOnly && filesStore.canSave() && (signers.value?.length || 0) > 1)
 
 function onDragEnd(evt: { oldIndex: number; newIndex: number }) {
 	const { oldIndex, newIndex } = evt

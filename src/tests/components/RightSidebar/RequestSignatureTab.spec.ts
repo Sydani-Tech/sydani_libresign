@@ -194,6 +194,15 @@ describe('RequestSignatureTab - Critical Business Rules', () => {
 		}) as VueWrapper<any>
 	})
 
+	it('locks approved recipients and order while retaining the in-place field editor', async () => {
+ await updateFile({signatureFlow:'ordered_numeric',signers:[{signRequestId:10,displayName:'A',status:0},{signRequestId:11,displayName:'B',status:0}]})
+ await wrapper.setProps({fixedRecipients:true,useModal:true})
+ expect(wrapper.vm.showPreserveOrder).toBe(false)
+ expect(wrapper.vm.canDelete({signRequestId:10})).toBe(false)
+ expect(wrapper.vm.canEditSigningOrder({signRequestId:10})).toBe(false)
+ expect(wrapper.findComponent({name:'Signers'}).props('readOnly')).toBe(true)
+ expect(wrapper.findComponent({name:'VisibleElements'}).props('allowSign')).toBe(false)
+ })
 	describe('RULE: showDocMdpWarning when DocMDP level prevents changes', () => {
 		it('shows warning when DocMDP level is 1 with existing signers', async () => {
 			await updateFile({
