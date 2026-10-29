@@ -330,6 +330,18 @@ class AccountService {
 	public function getPdfByUuid(string $uuid): File {
 		$fileData = $this->fileMapper->getByUuid($uuid);
 
+		// Approved letterheads are stored in appdata, outside the creator's Files.
+		// Retain the release check before resolving their source or signed master.
+		if (!empty(($fileData->getMetadata() ?? [])['letterhead'])) {
+			\OCP\Server::get(LetterheadService::class)->assertRelease($fileData);
+			try {
+				return $this->documentArchive->resolve($fileData,
+					in_array($fileData->getStatus(), [FileStatus::PARTIAL_SIGNED->value, FileStatus::SIGNED->value], true));
+			} catch (NotFoundException) {
+				throw new DoesNotExistException('Not found');
+			}
+		}
+
 		if (in_array($fileData->getStatus(), [FileStatus::PARTIAL_SIGNED->value, FileStatus::SIGNED->value])) {
 			$nodeId = $fileData->getSignedNodeId();
 		} else {
