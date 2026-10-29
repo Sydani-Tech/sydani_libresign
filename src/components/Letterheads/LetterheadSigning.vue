@@ -29,13 +29,12 @@ async function load(){
  try{
   const request=await campaignPost<{id:number,uuid:string}>('letterhead/documents/'+props.documentId+'/request')
   if(!active||run!==version)return
-  requestId.value=request.id
-  // Select only this approved request; wait for complete signer/field data before mounting the editor.
-  const id=await files.selectFileByUuid(request.uuid)
-  if(!active||run!==version){if(files.selectedFileId===request.id)files.selectFile();return}
-  if(id!==request.id)throw new Error(t('libresign','Unable to load this document’s signing request.'))
-  await files.fetchFileDetail({fileId:request.id,force:true})
+  requestId.value=Number(request.id)
+  // Load the exact approved request directly; list searches can omit drafts or apply unrelated filters.
+  const detail=await files.fetchFileDetail({fileId:requestId.value,uuid:request.uuid,force:true})
   if(!active||run!==version)return
+  if(!detail||Number(detail.id)!==requestId.value)throw new Error(t('libresign','Unable to load this document’s signing request.'))
+  files.selectFile(requestId.value)
   sidebar.setActiveTab('')
   files.disableIdentifySigner()
   ready.value=true;emit('prepared',request.id)
