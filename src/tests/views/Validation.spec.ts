@@ -238,6 +238,8 @@ describe('Validation.vue - Business Logic', () => {
 		wrapper.unmount()
 	})
 
+	it('offers a full-page return to the dashboard on the standalone verification page',()=>{expect(wrapper.find('.validation-navigation nc-button-stub').attributes('href')).toBe('/apps/libresign/f/dashboard')})
+
 	describe('canValidate computed property', () => {
 		it('returns false when uuidToValidate is empty', () => {
 			wrapper.vm.uuidToValidate = ''
@@ -478,7 +480,7 @@ describe('Validation.vue - Business Logic', () => {
 			expect(wrapper.vm.hasValidationIssues(signer)).toBe(true)
 		})
 
-		it('returns true when certificate is currently expired', () => {
+		it('does not equate current certificate expiry with a failed historical signature', () => {
 			const pastDate = new Date()
 			pastDate.setFullYear(pastDate.getFullYear() - 1)
 			const signer = {
@@ -486,10 +488,10 @@ describe('Validation.vue - Business Logic', () => {
 				certificate_validation: { id: 1, label: 'Trusted' },
 				valid_to: pastDate.toISOString(),
 			}
-			expect(wrapper.vm.hasValidationIssues(signer)).toBe(true)
+			expect(wrapper.vm.hasValidationIssues(signer)).toBe(false)
 		})
 
-		it('returns true when certificate is expiring soon', () => {
+		it('does not mark an otherwise valid certificate as invalid merely because it expires soon', () => {
 			const soonDate = new Date()
 			soonDate.setDate(soonDate.getDate() + 15)
 			const signer = {
@@ -497,7 +499,7 @@ describe('Validation.vue - Business Logic', () => {
 				certificate_validation: { id: 1, label: 'Trusted' },
 				valid_to: soonDate.toISOString(),
 			}
-			expect(wrapper.vm.hasValidationIssues(signer)).toBe(true)
+			expect(wrapper.vm.hasValidationIssues(signer)).toBe(false)
 		})
 
 		it('returns false when all validations pass', () => {

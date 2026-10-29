@@ -24,10 +24,13 @@ class SigningDashboardService {
 			$result = $q->executeQuery(); $counts[$key] = (int)$result->fetchOne(); $result->closeCursor();
 		}
 		$q = $this->query($user, $view);
-		$q->selectDistinct(['f.id', 'f.uuid', 'f.name', 'f.status', 'f.user_id', 'f.requested_at', 'f.created_at', 'f.completed_at', 'c.name AS campaign_name', 'c.due_at AS deadline'])
+		$fields = ['f.id', 'f.uuid', 'f.name', 'f.status', 'f.user_id', 'f.requested_at', 'f.created_at', 'f.completed_at', 'c.name AS campaign_name', 'c.due_at AS deadline'];
+		// Only the personal ready-to-sign query may expose the current participant's signing UUID.
+		if ($view === 'ready') $fields[] = 'sr.uuid AS signing_uuid';
+		$q->selectDistinct($fields)
 			->orderBy('f.created_at', 'DESC')->addOrderBy('f.id', 'DESC')->setFirstResult(($page - 1) * 10)->setMaxResults(10);
 		$cursor = $q->executeQuery(); $rows = [];
-		while ($row = $cursor->fetch()) $rows[] = ['id' => (int)$row['id'], 'uuid' => $row['uuid'], 'name' => $row['name'], 'status' => (int)$row['status'],
+		while ($row = $cursor->fetch()) $rows[] = ['id' => (int)$row['id'], 'uuid' => $row['uuid'], 'signingUuid' => $view === 'ready' ? $row['signing_uuid'] : null, 'name' => $row['name'], 'status' => (int)$row['status'],
 			'sender' => $this->users->get($row['user_id'])?->getDisplayName() ?? $row['user_id'], 'requestedAt' => $row['requested_at'] ?? $row['created_at'],
 			'completedAt' => $row['completed_at'], 'campaign' => $row['campaign_name'], 'deadline' => $row['deadline'] !== null ? (int)$row['deadline'] : null];
 		$cursor->closeCursor();

@@ -638,6 +638,7 @@ class PageController extends AEnvironmentPageAwareController {
 		);
 
 		FrontendAssets::addScript(Application::APP_ID, 'libresign-validation');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-validation');
 		if (class_exists(LoadViewer::class)) {
 			$this->eventDispatcher->dispatchTyped(new LoadViewer());
 		}
