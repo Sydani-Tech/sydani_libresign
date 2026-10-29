@@ -11,9 +11,7 @@
 				<h1>{{ t('libresign', 'Envelope information') }}</h1>
 			</div>
 			<NcNoteCard v-if="documentValidMessage" type="info">{{ t('libresign','Review each document’s integrity, certificate trust and long-term verification separately.') }}</NcNoteCard>
-			<NcNoteCard v-if="isAfterSigned" type="success">
-				{{ t('libresign', 'Congratulations you have digitally signed a document using LibreSign') }}
-			</NcNoteCard>
+			<SigningResultNotice v-if="isAfterSigned" :document="document" />
 			<ul>
 				<NcListItem class="extra" compact>
 					<template #name>
@@ -158,6 +156,7 @@
 </template>
 
 <script setup lang="ts">
+import SigningResultNotice from './SigningResultNotice.vue'
 import { n, t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'

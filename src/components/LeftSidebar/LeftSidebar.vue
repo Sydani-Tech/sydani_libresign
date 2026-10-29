@@ -7,10 +7,9 @@
 	<NcAppNavigation>
 		<template #list>
 			<NcAppNavigationItem id="signing-dashboard" :to="{name:'signingDashboard'}" :name="t('libresign','Dashboard')" @click="unselectFile"><template #icon><NcIconSvgWrapper :path="mdiViewDashboardOutline" :size="20" /></template></NcAppNavigationItem>
-			<NcAppNavigationItem v-if="canRequestSign"
-				id="request-files"
-				:to="{name: 'requestFiles'}"
-				:name="t('libresign', 'Request')"
+            <NcAppNavigationItem id="fileslist"
+				:to="{ name: 'fileslist' }"
+				:name="t('libresign', 'Request Signatures')"
 				@click="unselectFile">
 				<template #icon>
 					<NcIconSvgWrapper :path="mdiFileSign" :size="20" />
@@ -20,14 +19,6 @@
 				<template #icon><NcIconSvgWrapper :path="mdiFileSign" :size="20" /></template>
 			</NcAppNavigationItem>
 			<NcAppNavigationItem id="letterheads" :to="{name:'letterheads'}" :name="t('libresign','Letterheads')" @click="unselectFile"><template #icon><NcIconSvgWrapper :path="mdiFileCheck" :size="20" /></template></NcAppNavigationItem>
-            <NcAppNavigationItem id="fileslist"
-				:to="{ name: 'fileslist' }"
-				:name="t('libresign', 'Files')"
-				@click="unselectFile">
-				<template #icon>
-					<NcIconSvgWrapper :path="mdiFolder" :size="20" />
-				</template>
-			</NcAppNavigationItem>
 			<NcAppNavigationItem v-if="isAdmin"
 				id="signed-archive"
 				:to="{ name: 'organisationalArchive' }"
@@ -108,7 +99,6 @@ const canCreateCampaign = ref(false)
 onMounted(async () => {
 	try { canCreateCampaign.value = (await campaignGet<{canCreate: boolean}>('campaign/access')).canCreate } catch { canCreateCampaign.value = false }
 })
-const canRequestSign = loadState('libresign', 'can_request_sign', false)
 const config = loadState('libresign', 'config', {
 	identificationDocumentsFlow: false,
 	isApprover: false,

@@ -182,16 +182,18 @@ describe('FilesList.vue rendering rules', () => {
 		expect(wrapper.vm.isMenuOpen).toBe(false)
 	})
 
-	it('renders RequestPicker before the breadcrumbs in the header', async () => {
+	it('shows a single start panel above documents and filters', async () => {
 		const filesStore = useFilesStore()
 		vi.spyOn(filesStore, 'getAllFiles').mockResolvedValue({})
 
 		const wrapper = mountComponent()
 		await flushPromises()
 
-		const header = wrapper.find('.files-list__header')
-		const firstChild = header.element.children[0]
-		expect(firstChild.classList.contains('request-picker-stub')).toBe(true)
+		filesStore.canRequestSign = true
+		await flushPromises()
+		expect(wrapper.find('.request-start .request-picker-stub').exists()).toBe(true)
+		expect(wrapper.find('.request-start').element.compareDocumentPosition(wrapper.find('.files-list__filters-panel').element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+		expect(wrapper.text()).toContain('Use a Letterhead')
 	})
 
 	it('renders report filters above the list and retains the grid toggle', async () => {
@@ -239,10 +241,10 @@ describe('FilesList.vue rendering rules', () => {
 		await flushPromises()
 
 		const pickers = wrapper.findAll('.request-picker-stub')
-		expect(pickers).toHaveLength(2)
+		expect(pickers).toHaveLength(1)
 	})
 
-	it('hides empty-state request action when user cannot request sign', async () => {
+	it('hides upload controls when user cannot request sign', async () => {
 		const filesStore = useFilesStore()
 		const userConfigStore = useUserConfigStore()
 
@@ -256,7 +258,7 @@ describe('FilesList.vue rendering rules', () => {
 		await flushPromises()
 
 		const pickers = wrapper.findAll('.request-picker-stub')
-		expect(pickers).toHaveLength(1)
+		expect(pickers).toHaveLength(0)
 	})
 
 	it('renders grid toggle icon path when in list mode', async () => {

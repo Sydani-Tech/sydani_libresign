@@ -165,13 +165,7 @@ const routes: RouteRecordRaw[] = [
 	{
 		path: '/f/request',
 		name: 'requestFiles',
-		beforeEnter: (to, from, next) => {
-			if (!loadState('libresign', 'can_request_sign', false)) {
-				return { path: '/' }
-			}
-			next()
-		},
-		component: () => import('../views/Request.vue'),
+		redirect: to => ({ name: 'fileslist', query: to.query }),
 	},
 	{
 		path: '/f/sign/:uuid/pdf',

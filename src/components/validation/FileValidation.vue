@@ -10,9 +10,7 @@
 				<h1>{{ t('libresign', 'Document information') }}</h1>
 			</div>
 			<VerificationSummary :document="document" />
-			<NcNoteCard v-if="isAfterSigned" type="success">
-				{{ t('libresign', 'Congratulations you have digitally signed a document using LibreSign') }}
-			</NcNoteCard>
+			<SigningResultNotice v-if="isAfterSigned" :document="document" />
 			<DocumentValidationDetails
 				:document="document"
 				:legalInformation="legalInformation"
@@ -22,11 +20,11 @@
 </template>
 
 <script setup lang="ts">
+import SigningResultNotice from './SigningResultNotice.vue'
 import VerificationSummary from './VerificationSummary.vue'
 import DocumentValidationDetails from './DocumentValidationDetails.vue'
 import { t } from '@nextcloud/l10n'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
-import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { mdiInformationSlabCircle } from '@mdi/js'
 import type { LoadedValidationFileDocument } from '../../types/index'
 

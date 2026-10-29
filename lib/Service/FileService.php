@@ -608,6 +608,10 @@ class FileService {
 		$this->syncSingleFileCollection();
 
 		$return = json_decode(json_encode($this->fileData), true);
+        if (isset($return['longTermValidation']) && ($return['nodeType'] ?? 'file') !== 'envelope') {
+         $return['signers'] = PdfRevisionPolicy::reconcile($return['signers'] ?? [], $return['longTermValidation']);
+         foreach ($return['files'] ?? [] as $index => $child) if (($child['id'] ?? null) === ($return['id'] ?? null)) $return['files'][$index]['signers'] = $return['signers'];
+        }
 		ksort($return);
 		return $return;
 	}

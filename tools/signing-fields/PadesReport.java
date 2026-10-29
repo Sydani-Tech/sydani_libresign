@@ -19,11 +19,15 @@ public final class PadesReport {
   CommonCertificateVerifier verifier=new CommonCertificateVerifier(true);verifier.setTrustedCertSources(trusted);
   SignedDocumentValidator validator=SignedDocumentValidator.fromDocument(new FileDocument(args[0]));validator.setCertificateVerifier(verifier);
   if(args.length==3)validator.setValidationTime(java.util.Date.from(java.time.Instant.parse(args[2])));
-  var report=validator.validateDocument().getSimpleReport();
+  var reports=validator.validateDocument();var report=reports.getSimpleReport();var diagnostic=reports.getDiagnosticData();
   for(String id:report.getSignatureIdList()){
    var stamps=report.getSignatureTimestamps(id);boolean timestampValid=!stamps.isEmpty();for(var ts:stamps)timestampValid&=report.isValid(ts.getId());
    String name=Base64.getEncoder().encodeToString(safe(report.getSignedBy(id)).getBytes(StandardCharsets.UTF_8));
    var time=report.getBestSignatureTime(id);
+   var revision=diagnostic.getSignatureById(id).getPDFRevision();
+   var rawRevision=diagnostic.getJaxbModel().getSignatures().stream().filter(s->id.equals(s.getId())).findFirst().map(s->s.getPDFRevision()).orElse(null);
+   boolean revisionChecked=rawRevision!=null&&rawRevision.getModificationDetection()!=null&&rawRevision.getModificationDetection().getObjectModifications()!=null;
+   if(revision!=null)System.out.println("REVISION\t"+safe(id)+"\t"+(revisionChecked?"1":"0")+"\t"+(revision.isSignatureByteRangeValid()?"1":"0")+"\t"+(revision.isPdfSignatureDictionaryConsistent()?"1":"0")+"\t"+revision.getPdfExtensionChanges().size()+"\t"+revision.getPdfSignatureOrFormFillChanges().size()+"\t"+revision.getPdfAnnotationChanges().size()+"\t"+revision.getPdfUndefinedChanges().size()+"\t"+revision.getPdfVisualDifferenceConcernedPages().size()+"\t"+revision.getPdfPageDifferenceConcernedPages().size()+"\t"+revision.getPdfAnnotationsOverlapConcernedPages().size());
    System.out.println("SIGNATURE\t"+safe(id)+"\t"+name+"\t"+safe(report.getSignatureFormat(id)==null?null:report.getSignatureFormat(id).name())+"\t"+safe(report.getIndication(id)==null?null:report.getIndication(id).name())+"\t"+safe(report.getSubIndication(id)==null?null:report.getSubIndication(id).name())+"\t"+(timestampValid?"1":"0")+"\t"+(time==null?"":time.toInstant().toString()));
   }
  }

@@ -39,6 +39,7 @@
 						</select>
 						<p class="field-palette__desktop-hint">{{ t('libresign', 'Drag a field onto the document, or click a field and then click its position.') }}</p>
 						<p class="field-palette__mobile-hint">{{ t('libresign', 'Choose a field, then tap the document. Drag to move; use the corners to resize.') }}</p>
+						<p class="field-palette__date-help">{{ t('libresign', 'For an automatic WAT signing date, place a Date field, select it, then tick Use signing date. This setting is separate from Required.') }}</p>
 						<div class="field-palette__buttons">
 							<button v-for="field in palette" :key="field.type" type="button" draggable="true"
 								:disabled="!canSave || loading" :aria-pressed="selectedFieldType === field.type" :class="{ 'field-palette__button--active': selectedFieldType === field.type }"
@@ -1040,6 +1041,7 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+.field-palette__date-help { font-size:12px; line-height:1.5; margin:8px 0; color:var(--color-text-maxcontrast); }
 .field-palette {
 	display: grid;
 	gap: 10px;
