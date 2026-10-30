@@ -201,7 +201,13 @@ describe('FileEntryActions.vue', () => {
 		])
 	})
 
-	it('shows request-signature instead of details when the file has no signers', async () => {
+    it('omits Delete from the row menu when the record is protected',async()=>{
+        filesStoreMock.canDelete.mockReturnValue(false)
+        const wrapper=createWrapper();await wrapper.vm.$nextTick()
+        expect(wrapper.find('.files-list__row-action-delete').exists()).toBe(false)
+        expect(filesStoreMock.delete).not.toHaveBeenCalled();wrapper.unmount()
+    })
+    it('shows request-signature instead of details when the file has no signers', async () => {
 		const wrapper = createWrapper()
 		await wrapper.vm.$nextTick()
 

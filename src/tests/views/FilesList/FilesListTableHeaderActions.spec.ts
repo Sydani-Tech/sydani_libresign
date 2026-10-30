@@ -6,6 +6,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { interpolateL10n } from '../../testHelpers/l10n.js'
 import { flushPromises, mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 
 import FilesListTableHeaderActions from '../../../views/FilesList/FilesListTableHeaderActions.vue'
 
@@ -13,20 +14,21 @@ const showErrorMock = vi.fn()
 const showSuccessMock = vi.fn()
 const loggerErrorMock = vi.fn()
 
-const filesStoreMock = {
+const filesStoreMock = reactive({
 	loading: false,
 	files: {
 		1: { id: 1, loading: null },
 		2: { id: 2, loading: null },
 	},
 	deleteMultiple: vi.fn(),
-}
+	canDelete: vi.fn((_file: {id: number}) => true),
+})
 
-const selectionStoreMock = {
+const selectionStoreMock = reactive({
 	selected: [1, 2],
 	reset: vi.fn(),
 	set: vi.fn(),
-}
+})
 
 vi.mock('@nextcloud/l10n', () => globalThis.mockNextcloudL10n({
 	t: (_app: string, text: string, params?: Record<string, string>) => interpolateL10n(text, params),
@@ -115,6 +117,7 @@ describe('FilesListTableHeaderActions.vue', () => {
 			2: { id: 2, loading: null },
 		}
 		filesStoreMock.deleteMultiple.mockReset()
+        filesStoreMock.canDelete.mockReset().mockReturnValue(true)
 		selectionStoreMock.selected = [1, 2]
 		selectionStoreMock.reset.mockReset()
 		selectionStoreMock.set.mockReset()
@@ -132,7 +135,35 @@ describe('FilesListTableHeaderActions.vue', () => {
 		expect(wrapper.find('.nc-action-button-stub').text()).toContain('Delete')
 	})
 
-	it('shows success and resets selection after a successful batch action', async () => {
+    it.each([[1],[1,2]])('hides Delete for protected and mixed selections %j without displaying an error',async(id1,id2)=>{
+        filesStoreMock.canDelete.mockImplementation(file=>file.id!==1)
+        selectionStoreMock.selected=id2 ? [id1,id2] : [id1]
+        const wrapper=createWrapper();await flushPromises()
+        expect(wrapper.find('.files-list__row-actions-batch-delete').exists()).toBe(false)
+        expect(showErrorMock).not.toHaveBeenCalled()
+        expect(filesStoreMock.deleteMultiple).not.toHaveBeenCalled();wrapper.unmount()
+    })
+    it('updates visibility when selecting drafts, protected records, or an unknown record',async()=>{
+        filesStoreMock.canDelete.mockImplementation(file=>file.id!==1)
+        selectionStoreMock.selected=[2]
+        const wrapper=createWrapper();await flushPromises()
+        expect(wrapper.find('.files-list__row-actions-batch-delete').exists()).toBe(true)
+        selectionStoreMock.selected=[1,2];await wrapper.vm.$nextTick()
+        expect(wrapper.find('.files-list__row-actions-batch-delete').exists()).toBe(false)
+        selectionStoreMock.selected=[999];await wrapper.vm.$nextTick()
+        expect(wrapper.find('.files-list__row-actions-batch-delete').exists()).toBe(false)
+        selectionStoreMock.selected=[2];await wrapper.vm.$nextTick()
+        expect(wrapper.find('.files-list__row-actions-batch-delete').exists()).toBe(true);wrapper.unmount()
+    })
+    it('does not delete queued records that become protected before confirmation',async()=>{
+        const wrapper=createWrapper();await flushPromises()
+        wrapper.vm.toDelete=[1,2];wrapper.vm.confirmDelete=true
+        filesStoreMock.canDelete.mockReturnValue(false)
+        wrapper.vm.doDelete();await flushPromises()
+        expect(filesStoreMock.deleteMultiple).not.toHaveBeenCalled()
+        expect(wrapper.vm.confirmDelete).toBe(false);wrapper.unmount()
+    })
+    it('shows success and resets selection after a successful batch action', async () => {
 		const wrapper = createWrapper()
 		const action = {
 			id: 'archive',

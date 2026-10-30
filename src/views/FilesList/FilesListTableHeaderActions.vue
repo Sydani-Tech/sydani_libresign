@@ -4,7 +4,7 @@
 -->
 <template>
 	<div class="files-list__column files-list__row-actions-batch" data-cy-files-list-selection-actions>
-		<NcActions ref="actionsMenu"
+		<NcActions v-if="enabledMenuActions.length" ref="actionsMenu"
 			container="#app-content-vue"
 			:disabled="!!loading || areFilesLoading"
 			:force-name="true">
@@ -83,7 +83,10 @@ type BatchAction = {
 const filesStore = useFilesStore()
 const selectionStore = useSelectionStore()
 
-const enabledMenuActions = ref<BatchAction[]>([])
+const registeredActions = ref<BatchAction[]>([])
+const enabledMenuActions = computed(() => registeredActions.value.filter(action =>
+    action.id !== 'delete' || canDeleteSelection(selectionStore.selected),
+))
 const loading = ref<string | null>(null)
 const toDelete = ref<number[]>([])
 const confirmDelete = ref(false)
@@ -93,10 +96,22 @@ const deleting = ref(false)
 const areFilesLoading = computed(() => filesStore.loading)
 
 function registerAction(action: BatchAction) {
-	enabledMenuActions.value = [...enabledMenuActions.value, action]
+	registeredActions.value = [...registeredActions.value, action]
+}
+
+function canDeleteSelection(ids: number[]) {
+    return ids.length > 0 && ids.every(id => {
+        const file = filesStore.files[id]
+        return !!file && filesStore.canDelete(file)
+    })
 }
 
 function doDelete() {
+    if (!canDeleteSelection(toDelete.value)) {
+        confirmDelete.value = false
+        toDelete.value = []
+        return
+    }
 	deleting.value = true
 	filesStore.deleteMultiple(toDelete.value, deleteFile.value)
 		.then(() => {
@@ -158,7 +173,7 @@ onMounted(() => {
 		displayName: () => t('libresign', 'Delete'),
 		iconSvgInline: () => svgDelete,
 		execBatch: (files) => {
-			if (files.some(id => !filesStore.canDelete(filesStore.files[id]))) {
+			if (!canDeleteSelection(files)) {
 				showError(t('libresign', 'Signed documents and their signing history cannot be deleted.'))
 				return files.map(() => null)
 			}
