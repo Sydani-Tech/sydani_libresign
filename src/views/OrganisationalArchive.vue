@@ -47,8 +47,11 @@
 					<span>{{ t('libresign', 'Page {page} of {pages} · {total} documents', { page, pages: Math.max(1, Math.ceil(total / length)), total }) }}</span>
 					<NcButton :disabled="loading || page * length >= total" @click="changePage(1)">{{ t('libresign', 'Next') }}</NcButton>
 				</div>
-				<section v-if="history" class="archive-history" aria-live="polite">
-					<header><h3>{{ t('libresign', 'Signing history') }} — {{ history.name }}</h3><NcButton @click="history = null">{{ t('libresign', 'Close') }}</NcButton></header>
+				<NcDialog v-if="historyOpen" :open="true" :name="historyTitle" size="large" @closing="closeHistory">
+                    <div class="archive-history">
+                        <div v-if="historyLoading" role="status" aria-live="polite"><NcLoadingIcon />{{ t('libresign', 'Loading signing history…') }}</div>
+                        <p v-else-if="historyError" role="alert"><strong>{{ historyError }}</strong></p>
+                        <div v-else-if="history" class="archive-history__content" tabindex="0" :aria-label="t('libresign', 'Signing history details')">
 					<p>{{ t('libresign', 'Signed document SHA-256') }}: <code>{{ history.hash }}</code></p>
 					<ol>
 						<li v-for="(recipient, index) in history.recipients" :key="index">
@@ -60,20 +63,24 @@
 							<p v-for="(field, fieldIndex) in recipient.fields" :key="fieldIndex">{{ field.label || field.type }}: {{ String(field.value) }}</p>
 						</li>
 						</ol>
-				</section>
+                        </div>
+                    </div>
+                    <template #actions><NcButton @click="closeHistory">{{ t('libresign', 'Close') }}</NcButton></template>
+                </NcDialog>
 			</template>
 		</section>
 	</NcAppContent>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getCurrentUser } from '@nextcloud/auth'
 import axios from '@nextcloud/axios'
 import { t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 
 import DocumentFilters from '../components/DocumentFilters/DocumentFilters.vue'
@@ -86,6 +93,12 @@ const isAdmin = computed(() => getCurrentUser()?.isAdmin ?? false)
 const documents = ref<ArchivedDocument[]>([])
 const senders = ref<Array<{id: string, name: string}>>([])
 const history = ref<ArchivedDocument | null>(null)
+const historyOpen = ref(false)
+const historyLoading = ref(false)
+const historyError = ref('')
+const historyName = ref('')
+const historyTitle = computed(() => historyName.value ? t('libresign', 'Signing history — {name}', {name: historyName.value}) : t('libresign', 'Signing history'))
+let historyRequest = 0
 const page = ref(1)
 const length = 25
 const total = ref(0)
@@ -121,16 +134,33 @@ async function load() {
 		loading.value = false
 	}
 }
-function search() { page.value = 1; history.value = null; return load() }
+function search() { page.value = 1; closeHistory(); return load() }
 function applyFilters(value: FilterState) { filters.value = value; return search() }
 function changePage(delta: number) { page.value += delta; return load() }
-async function showHistory(id: number) {
-	try {
-		history.value = (await axios.get(generateUrl('/apps/libresign/archive/history/{id}', { id }))).data
-	} catch {
-		error.value = t('libresign', 'Unable to load signing history.')
-	}
+function closeHistory() {
+    historyRequest++
+    historyOpen.value = false
+    history.value = null
+    historyError.value = ''
+    historyLoading.value = false
 }
+async function showHistory(id: number) {
+    const request = ++historyRequest
+    historyName.value = documents.value.find(document => document.id === id)?.name || ''
+    history.value = null
+    historyError.value = ''
+    historyLoading.value = true
+    historyOpen.value = true
+    try {
+        const response = await axios.get(generateUrl('/apps/libresign/archive/history/{id}', { id }))
+        if (request === historyRequest) history.value = response.data
+    } catch {
+        if (request === historyRequest) historyError.value = t('libresign', 'Unable to load signing history. Close this window and try again.')
+    } finally {
+        if (request === historyRequest) historyLoading.value = false
+    }
+}
+onBeforeUnmount(() => { historyRequest++ })
 onMounted(load)
 </script>
 
@@ -149,8 +179,9 @@ th { background: var(--color-background-dark); white-space: nowrap; }
 td small { display: block; margin-top: 6px; color: var(--color-text-maxcontrast); }
 .archive-row-actions a { display: inline-block; margin-inline-end: 14px; margin-block: 6px; color: var(--color-primary-element); text-decoration: underline; }
 .archive-pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-block: 20px; }
-.archive-history { padding: 20px; background: var(--color-background-dark); border-radius: var(--border-radius-large); }
-.archive-history header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.archive-history code { overflow-wrap: anywhere; }
+.archive-history { min-width: 0; }
+.archive-history__content { max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; padding: 4px 12px 4px 4px; }
+.archive-history p, .archive-history code { overflow-wrap: anywhere; white-space: normal; }
+.archive-history p { line-height: 1.6; }
 .archive-history li { margin: 18px 0 18px 24px; list-style: decimal; }
 </style>

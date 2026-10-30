@@ -16,6 +16,8 @@ vi.mock('@nextcloud/vue/components/NcAppContent', () => ({ default: { template: 
 vi.mock('@nextcloud/vue/components/NcButton', () => ({ default: { template: '<button><slot /></button>' } }))
 vi.mock('@nextcloud/vue/components/NcLoadingIcon', () => ({ default: { template: '<span />' } }))
 
+vi.mock('@nextcloud/vue/components/NcDialog', () => ({ default: { name:'NcDialog', props:['name','open'], emits:['closing'], template:'<section role="dialog" :aria-label="name"><h2>{{ name }}</h2><button aria-label="Close dialog" @click="$emit(\'closing\')">×</button><slot /><footer><slot name="actions" /></footer></section>' } }))
+
 const record = {
 	id: 7, uuid: 'document-uuid', name: 'Archive QA', sender: { id: 'alice', name: 'Alice' },
 	recipients: [{ name: 'Bob', order: 1, statusText: 'Signed', signedAt: '2026-10-15T10:00:00Z', ipAddress: null, identifiers: [], fields: [] }],
@@ -36,7 +38,54 @@ describe('Organisational archive', () => {
 		expect(wrapper.findAll('button').some(button => button.text() === 'Delete')).toBe(false)
 		wrapper.unmount()
 	})
-	it('does not fetch or expose archive records for ordinary users', async () => {
+	it('shows history in a dialog and preserves the archive filters and listing when closed',async()=>{
+        const wrapper=mount(OrganisationalArchive);await flushPromises()
+        await wrapper.find('input[type=search]').setValue('Archive')
+        vi.mocked(axios.get).mockResolvedValueOnce({data:record})
+        await wrapper.findAll('button').find(b=>b.text()==='Signing history')!.trigger('click');await flushPromises()
+        expect(wrapper.find('[role=dialog]').attributes('aria-label')).toBe('Signing history — Archive QA')
+        expect(wrapper.find('[role=dialog]').text()).toContain('Signed document SHA-256')
+        expect(wrapper.find('[role=dialog] ol').text()).toContain('Bob')
+        expect(wrapper.findAll('.signed-archive > .archive-history')).toHaveLength(0)
+        await wrapper.find('[role=dialog] footer button').trigger('click')
+        expect(wrapper.find('[role=dialog]').exists()).toBe(false)
+        expect((wrapper.find('input[type=search]').element as HTMLInputElement).value).toBe('Archive')
+        expect(wrapper.find('tbody').text()).toContain('Archive QA')
+        expect(axios.get).toHaveBeenCalledTimes(2);wrapper.unmount()
+    })
+    it('opens immediately while loading and ignores a late response after closing',async()=>{
+        const wrapper=mount(OrganisationalArchive);await flushPromises()
+        let finish!:(value:unknown)=>void
+        vi.mocked(axios.get).mockReturnValueOnce(new Promise(resolve=>{finish=resolve}))
+        await wrapper.findAll('button').find(b=>b.text()==='Signing history')!.trigger('click')
+        expect(wrapper.find('[role=dialog] [role=status]').text()).toContain('Loading signing history')
+        await wrapper.find('[aria-label="Close dialog"]').trigger('click')
+        finish({data:record});await flushPromises()
+        expect(wrapper.find('[role=dialog]').exists()).toBe(false);wrapper.unmount()
+    })
+    it('keeps a history lookup failure inside the dialog without stale details',async()=>{
+        const wrapper=mount(OrganisationalArchive);await flushPromises()
+        vi.mocked(axios.get).mockRejectedValueOnce(new Error('Forbidden'))
+        await wrapper.findAll('button').find(b=>b.text()==='Signing history')!.trigger('click');await flushPromises()
+        expect(wrapper.find('[role=dialog] [role=alert]').text()).toContain('Unable to load signing history')
+        expect(wrapper.find('[role=dialog] ol').exists()).toBe(false)
+        expect(wrapper.find('.archive-error').exists()).toBe(false);wrapper.unmount()
+    })
+    it('does not let an older response replace another document history',async()=>{
+        const second={...record,id:8,name:'Second document',recipients:[{...record.recipients[0],name:'Carol'}]}
+        vi.mocked(axios.get).mockResolvedValueOnce({data:{data:[record,second],total:2,senders:[]}})
+        const wrapper=mount(OrganisationalArchive);await flushPromises()
+        let finish!:(value:unknown)=>void
+        vi.mocked(axios.get).mockReturnValueOnce(new Promise(resolve=>{finish=resolve}))
+        const buttons=wrapper.findAll('button').filter(b=>b.text()==='Signing history')
+        await buttons[0].trigger('click');await wrapper.find('[aria-label="Close dialog"]').trigger('click')
+        vi.mocked(axios.get).mockResolvedValueOnce({data:second})
+        await buttons[1].trigger('click');await flushPromises();finish({data:record});await flushPromises()
+        expect(wrapper.find('[role=dialog]').text()).toContain('Second document')
+        expect(wrapper.find('[role=dialog] ol').text()).toContain('Carol')
+        expect(wrapper.find('[role=dialog] ol').text()).not.toContain('Bob');wrapper.unmount()
+    })
+    it('does not fetch or expose archive records for ordinary users', async () => {
 		auth.admin = false
 		const wrapper = mount(OrganisationalArchive)
 		await flushPromises()
