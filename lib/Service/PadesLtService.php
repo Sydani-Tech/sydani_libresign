@@ -36,11 +36,11 @@ class PadesLtService {
    $seen[$key] = true;
   }
  }
- public function parameters(): array {
+ public function parameters(bool $countersigning = false): array {
   if(!$this->enabled())return [];
   $tsa=$this->config->getValueString(Application::APP_ID,'tsa_url','');$trust=$this->config->getValueString(Application::APP_ID,'pades_lt_trust_files','');
   if(!$tsa||!filter_var($tsa,FILTER_VALIDATE_URL)||!$trust)throw new \RuntimeException('PAdES-LT requires a timestamp service and trusted CA certificates.');
   foreach(explode(',',$trust) as $path)if(!$path||!is_file($path)||!is_readable($path))throw new \RuntimeException('PAdES-LT trust material is unavailable.');
-  return ['--engine'=>'dss','--pades-level'=>'LT','--option'=>['engine.dss.online.enabled=true','engine.dss.trust.certFiles='.$trust,'engine.dss.trust.allowUntrusted=false','engine.dss.tsa.nonce=true']];
+  return ['--engine'=>'dss','--pades-level'=>$countersigning?'T':'LT','--option'=>['engine.dss.online.enabled='.($countersigning?'false':'true'),'engine.dss.trust.certFiles='.$trust,'engine.dss.trust.allowUntrusted=false','engine.dss.tsa.nonce=true']];
  }
 }

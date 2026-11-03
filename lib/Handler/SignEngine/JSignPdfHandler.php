@@ -260,16 +260,29 @@ class JSignPdfHandler extends Pkcs12Handler {
 		$this->jSignParam = null;
 		$this->parsedSignatureText = [];
 		$inputPdf = $this->getInputFile()->getContent();
-		// Verify existing signatures offline before allowing any network-enabled augmentation.
-		if (\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->enabled() && $this->hasExistingSignatures($inputPdf)) \OCP\Server::get(\OCA\Libresign\Service\PadesVerificationService::class)->assertLt($inputPdf);
-		\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->refreshLocalRevocation($this->getCertificate(), $this->getPassword());
-		$normalizedPdf = $this->normalizePdfVersion($inputPdf);
-		$normalizedPdf = $this->pdfSigningFieldsService->fill($normalizedPdf, $this->getSignatureParams()['SigningFields'] ?? []);
+		$lt = \OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class);
+		$verifier = $lt->enabled() ? \OCP\Server::get(\OCA\Libresign\Service\PadesVerificationService::class) : null;
+		$existing = [];
+		$mixed = false;
+		$fields = $this->getSignatureParams()['SigningFields'] ?? [];
+		if ($verifier && $this->hasExistingSignatures($inputPdf)) {
+			$existing = \OCA\Libresign\Service\PdfCountersigningPolicy::existing($verifier->verify($inputPdf));
+			$mixed = count(array_filter($existing, [\OCA\Libresign\Service\PdfCountersigningPolicy::class, 'isLt'])) !== count($existing);
+			if ($mixed) \OCA\Libresign\Service\PdfCountersigningPolicy::preflight($existing, $fields);
+		}
+		$lt->refreshLocalRevocation($this->getCertificate(), $this->getPassword());
+		$normalizedPdf = $mixed ? $inputPdf : $this->normalizePdfVersion($inputPdf);
+		$normalizedPdf = $this->pdfSigningFieldsService->fill($normalizedPdf, $fields);
+		$finish = function (string $signed) use ($mixed, $verifier, $inputPdf, $existing): string {
+			if ($mixed) return $verifier->completeCountersignature($inputPdf, $signed, $existing, $this->getCertificate(), $this->getPassword());
+			$verifier?->assertLt($signed);
+			return $signed;
+		};
 		$hashAlgorithm = $this->getHashAlgorithm($normalizedPdf);
 		$param = $this->getJSignParam();
 
 		$tsaParams = $this->listParamsToString($this->getTsaParameters());
-		foreach (\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->parameters() as $key => $value) {
+		foreach ($lt->parameters($mixed) as $key => $value) {
 			foreach (is_array($value) ? $value : [$value] as $argument) $tsaParams .= ' ' . $key . ' ' . escapeshellarg($argument);
 		}
 
@@ -291,8 +304,7 @@ class JSignPdfHandler extends Pkcs12Handler {
 
 		$signed = $this->signUsingVisibleElements($normalizedPdf, $hashAlgorithm);
 		if ($signed) {
-			if (\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->enabled()) \OCP\Server::get(\OCA\Libresign\Service\PadesVerificationService::class)->assertLt($signed);
-			return $signed;
+			return $finish($signed);
 		}
 
 		$param->setJSignParameters(
@@ -304,8 +316,7 @@ class JSignPdfHandler extends Pkcs12Handler {
 		$jSignPdf = $this->getJSignPdf();
 		$jSignPdf->setParam($param);
 		$signed = $this->signWrapper($jSignPdf);
-		if (\OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->enabled()) \OCP\Server::get(\OCA\Libresign\Service\PadesVerificationService::class)->assertLt($signed);
-		return $signed;
+		return $finish($signed);
 	}
 
 	private function signUsingVisibleElements(string $normalizedPdf, string $hashAlgorithm): string {
