@@ -16,13 +16,15 @@ use OCA\Libresign\Service\ExternalArchiveService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\IGroupManager;
 use OCP\IRequest;
+use OCP\IUser;
 use OCP\IUserSession;
 
-/** No NoAdminRequired/PublicPage attributes: Nextcloud enforces admin login too. */
+/** All archive routes require a signed-in user. */
 class ArchiveController extends Controller {
 	public function __construct(
 		IRequest $request,
@@ -35,27 +37,31 @@ class ArchiveController extends Controller {
 		parent::__construct(Application::APP_ID, $request);
 	}
 
-	private function isAdmin(): bool {
-		$user = $this->userSession->getUser();
-		return $user !== null && $this->groupManager->isInGroup($user->getUID(), 'admin');
+	private function importerScope(IUser $user): ?string {
+		$uid = $user->getUID();
+		return $this->groupManager->isInGroup($uid, 'admin') ? null : $uid;
 	}
 
 	#[NoCSRFRequired]
+	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/archive/list')]
 	public function index(int $page = 1, int $length = 25, string $name = '', string $sender = '', string $recipient = '', string $status = 'completed', string $dateBy = 'completed', ?int $from = null, ?int $to = null, string $sortBy = 'completed', string $direction = 'desc', string $recipientName = '', string $recipientEmail = '', string $letterhead = '', string $signingOrigin = ''): DataResponse {
-		if (!$this->isAdmin()) {
-			return new DataResponse(['message' => 'Administrator access required'], 403);
+		$user = $this->userSession->getUser();
+		if (!$user) {
+			return new DataResponse(['message' => 'Sign in to use Signed Archive'], 401);
 		}
 		if (($from !== null && $to !== null && $from > $to) || strlen($name) > 200 || strlen($recipient) > 200 || strlen($recipientName) > 200 || strlen($recipientEmail) > 200) {
 			return new DataResponse(['message' => 'Invalid archive filter'], 400);
 		}
-		return new DataResponse($this->archiveQuery->list(compact('signingOrigin', 'letterhead', 'name', 'sender', 'recipient', 'recipientName', 'recipientEmail', 'status', 'dateBy', 'from', 'to', 'sortBy', 'direction'), $page, $length), 200, ['Cache-Control' => 'private, no-store']);
+		return new DataResponse($this->archiveQuery->list(compact('signingOrigin', 'letterhead', 'name', 'sender', 'recipient', 'recipientName', 'recipientEmail', 'status', 'dateBy', 'from', 'to', 'sortBy', 'direction'), $page, $length, $this->importerScope($user)), 200, ['Cache-Control' => 'private, no-store']);
 	}
 
+	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'POST', url: '/archive/inspect')]
 	public function inspect(): DataResponse {
-		if (!$this->isAdmin()) {
-			return new DataResponse(['message' => 'Administrator access required'], 403);
+		$user = $this->userSession->getUser();
+		if (!$user) {
+			return new DataResponse(['message' => 'Sign in to use Signed Archive'], 401);
 		}
 		$pdf = $this->request->getUploadedFile('pdf');
 		if (!$pdf) {
@@ -68,11 +74,12 @@ class ArchiveController extends Controller {
 		}
 	}
 
+	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'POST', url: '/archive/import')]
 	public function import(string $confirmed = '', string $senderName = '', string $senderEmail = '', string $provider = '', string $reference = '', string $completedDate = ''): DataResponse {
 		$user = $this->userSession->getUser();
-		if (!$user || !$this->isAdmin()) {
-			return new DataResponse(['message' => 'Administrator access required'], 403);
+		if (!$user) {
+			return new DataResponse(['message' => 'Sign in to use Signed Archive'], 401);
 		}
 		$pdf = $this->request->getUploadedFile('pdf');
 		if (!$pdf) {
@@ -98,13 +105,15 @@ class ArchiveController extends Controller {
 	}
 
 	#[NoCSRFRequired]
+	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/archive/verify/{fileId}')]
 	public function verifyExternal(int $fileId): DataResponse {
-		if (!$this->isAdmin()) {
-			return new DataResponse(['message' => 'Administrator access required'], 403);
+		$user = $this->userSession->getUser();
+		if (!$user) {
+			return new DataResponse(['message' => 'Sign in to use Signed Archive'], 401);
 		}
 		try {
-			$file = $this->archiveQuery->getProtectedFile($fileId);
+			$file = $this->archiveQuery->getProtectedFile($fileId, $this->importerScope($user));
 			if ($file->getExternallySigned()) {
 				return new DataResponse($this->externalArchive->verify($file), 200, ['Cache-Control' => 'private, no-store']);
 			}
@@ -114,13 +123,15 @@ class ArchiveController extends Controller {
 	}
 
 	#[NoCSRFRequired]
+	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/archive/audit/{fileId}')]
 	public function audit(int $fileId): FileDisplayResponse|DataResponse {
-		if (!$this->isAdmin()) {
-			return new DataResponse(['message' => 'Administrator access required'], 403);
+		$user = $this->userSession->getUser();
+		if (!$user) {
+			return new DataResponse(['message' => 'Sign in to use Signed Archive'], 401);
 		}
 		try {
-			$file = $this->archiveQuery->getProtectedFile($fileId);
+			$file = $this->archiveQuery->getProtectedFile($fileId, $this->importerScope($user));
 			if ($file->getExternallySigned()) {
 				return new FileDisplayResponse($this->externalArchive->audit($file), 200, [
 					'Content-Type' => 'application/pdf',
@@ -135,26 +146,30 @@ class ArchiveController extends Controller {
 	}
 
 	#[NoCSRFRequired]
+	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/archive/history/{fileId}')]
 	public function history(int $fileId): DataResponse {
-		if (!$this->isAdmin()) {
-			return new DataResponse(['message' => 'Administrator access required'], 403);
+		$user = $this->userSession->getUser();
+		if (!$user) {
+			return new DataResponse(['message' => 'Sign in to use Signed Archive'], 401);
 		}
 		try {
-			return new DataResponse($this->archiveQuery->describe($this->archiveQuery->getProtectedFile($fileId)), 200, ['Cache-Control' => 'private, no-store']);
+			return new DataResponse($this->archiveQuery->describe($this->archiveQuery->getProtectedFile($fileId, $this->importerScope($user))), 200, ['Cache-Control' => 'private, no-store']);
 		} catch (\OCP\AppFramework\Db\DoesNotExistException) {
 			return new DataResponse(['message' => 'Signed document not found'], 404);
 		}
 	}
 
 	#[NoCSRFRequired]
+	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/archive/file/{fileId}')]
 	public function file(int $fileId, bool $download = false): FileDisplayResponse|DataResponse {
-		if (!$this->isAdmin()) {
-			return new DataResponse(['message' => 'Administrator access required'], 403);
+		$user = $this->userSession->getUser();
+		if (!$user) {
+			return new DataResponse(['message' => 'Sign in to use Signed Archive'], 401);
 		}
 		try {
-			$file = $this->archiveQuery->getProtectedFile($fileId);
+			$file = $this->archiveQuery->getProtectedFile($fileId, $this->importerScope($user));
 			$node = $this->documentArchive->resolve($file);
 			$filename = preg_replace('/[\r\n\x00-\x1f]/', '', basename($file->getName())) . '.signed.' . $node->getExtension();
 			return new FileDisplayResponse($node, 200, [

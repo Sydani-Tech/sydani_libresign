@@ -19,7 +19,7 @@
 				<template #icon><NcIconSvgWrapper :path="mdiFileSign" :size="20" /></template>
 			</NcAppNavigationItem>
 			<NcAppNavigationItem id="letterheads" :to="{name:'letterheads'}" :name="t('libresign','Letterheads')" @click="unselectFile"><template #icon><NcIconSvgWrapper :path="mdiFileCheck" :size="20" /></template></NcAppNavigationItem>
-			<NcAppNavigationItem v-if="isAdmin"
+			<NcAppNavigationItem v-if="getCurrentUser()"
 				id="signed-archive"
 				:to="{ name: 'organisationalArchive' }"
 				:name="t('libresign', 'Signed Archive')"

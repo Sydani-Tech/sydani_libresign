@@ -17,7 +17,7 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IUserManager;
 
-/** Read-only organisational reporting. Access is admin-only in ArchiveController. */
+/** Organisational reporting, with a restricted view for individual importers. */
 class ArchiveQueryService {
 	public function __construct(
 		private IDBConnection $db,
@@ -28,7 +28,7 @@ class ArchiveQueryService {
 	) {
 	}
 
-	public function list(array $filter, int $page = 1, int $length = 25): array {
+	public function list(array $filter, int $page = 1, int $length = 25, ?string $importer = null): array {
 		$page = max(1, $page);
 		$length = max(1, min(100, $length));
 		$qb = $this->db->getQueryBuilder();
@@ -38,6 +38,10 @@ class ArchiveQueryService {
 			->andWhere($qb->expr()->isNull('idoc.id'))
 			->andWhere($qb->expr()->isNotNull('f.signed_node_id'))
 			->andWhere($qb->expr()->isNotNull('f.signed_hash'));
+		if ($importer !== null) {
+			$qb->andWhere($qb->expr()->eq('f.externally_signed', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT)))
+				->andWhere($qb->expr()->eq('f.user_id', $qb->createNamedParameter($importer)));
+		}
 		$statuses = match ($filter['status'] ?? 'completed') {
 			'partial' => [FileStatus::PARTIAL_SIGNED->value],
 			'all' => [FileStatus::PARTIAL_SIGNED->value, FileStatus::SIGNED->value],
@@ -85,12 +89,13 @@ class ArchiveQueryService {
 			$file = (new File())->fromRow($row);
 			$rows[] = $this->describe($file);
 		}
-		return ['data' => $rows, 'total' => $total, 'page' => $page, 'length' => $length, 'senders' => $this->senders()];
+		return ['data' => $rows, 'total' => $total, 'page' => $page, 'length' => $length, 'senders' => $importer === null ? $this->senders() : []];
 	}
 
-	public function getProtectedFile(int $fileId): File {
+	public function getProtectedFile(int $fileId, ?string $importer = null): File {
 		$file = $this->fileMapper->getById($fileId);
-		if (!$file->getSignedNodeId() || !$this->documentArchive->hasSignatures($file)) {
+		if (!$file->getSignedNodeId() || !$this->documentArchive->hasSignatures($file)
+			|| ($importer !== null && (!$file->getExternallySigned() || $file->getUserId() !== $importer))) {
 			throw new \OCP\AppFramework\Db\DoesNotExistException('Signed document not found');
 		}
 		return $file;

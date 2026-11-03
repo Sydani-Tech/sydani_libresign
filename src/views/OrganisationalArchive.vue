@@ -6,11 +6,11 @@
 	<NcAppContent :page-heading="t('libresign', 'Signed Archive')">
 		<section class="signed-archive">
 			<h2>{{ t('libresign', 'Signed Archive') }}</h2>
-			<p>{{ t('libresign', 'Protected archive for completed signing records and externally signed PDFs.') }}</p>
-			<p v-if="!isAdmin" role="alert">{{ t('libresign', 'Administrator access required.') }}</p>
+			<p>{{ isAdmin ? t('libresign', 'Protected archive for completed signing records and externally signed PDFs.') : t('libresign', 'Archive externally signed PDFs and view your own imports here.') }}</p>
+			<p v-if="!signedIn" role="alert">{{ t('libresign', 'Sign in to use Signed Archive.') }}</p>
 			<template v-else>
 				<NcButton variant="primary" @click="importOpen = true">{{ t('libresign', 'Archive a signed PDF') }}</NcButton>
-				<DocumentFilters :model-value="filters" :senders="senders" archive compact :loading="loading" @apply="applyFilters" />
+				<DocumentFilters v-if="isAdmin" :model-value="filters" :senders="senders" archive compact :loading="loading" @apply="applyFilters" />
 				<p v-if="error" role="alert" class="archive-error">{{ error }}</p>
 				<div v-if="loading" role="status" aria-live="polite"><NcLoadingIcon />{{ t('libresign', 'Loading archive…') }}</div>
 				<div class="archive-table-scroll" :aria-busy="loading">
@@ -52,8 +52,16 @@
 				<NcDialog v-if="importOpen" :name="t('libresign', 'Archive an externally signed PDF')" size="large" @closing="closeImport">
 					<form id="external-archive-import" class="archive-import" @submit.prevent="importDocument">
 						<p>{{ t('libresign', 'Upload the completed PDF as downloaded from the signing service. Enter any details you know from the invitation or audit report.') }}</p>
-						<label>{{ t('libresign', 'Completed PDF') }}<input type="file" accept=".pdf,application/pdf" required :disabled="importing || inspecting" @change="selectPdf($event, false)"></label>
-						<label>{{ t('libresign', 'Audit report or certificate of completion (optional PDF)') }}<input type="file" accept=".pdf,application/pdf" :disabled="importing" @change="selectPdf($event, true)"></label>
+						<div class="archive-import__uploads">
+							<FilePicker :label="t('libresign', 'Completed PDF')"
+								:filename="importPdf?.name" :hint="t('libresign', 'Signed PDF · Required')"
+								accept="application/pdf,.pdf" :disabled="importing || inspecting" required
+								@change="selectPdf($event, false)" />
+							<FilePicker :label="t('libresign', 'Audit report or certificate of completion')"
+								:filename="auditPdf?.name" :hint="t('libresign', 'PDF · Optional')"
+								accept="application/pdf,.pdf" :disabled="importing"
+								@change="selectPdf($event, true)" />
+						</div>
 						<div class="archive-import__metadata">
 							<label>{{ t('libresign', 'Sender name') }}<input v-model.trim="details.senderName" maxlength="250" :disabled="importing"></label>
 							<label>{{ t('libresign', 'Sender email') }}<input v-model.trim="details.senderEmail" type="email" maxlength="250" :disabled="importing"></label>
@@ -143,6 +151,7 @@ import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 
 import { hasLongTermEvidence, type LongTermValidation } from '../services/verificationSummary'
+import FilePicker from '../components/FilePicker.vue'
 import DocumentFilters from '../components/DocumentFilters/DocumentFilters.vue'
 import { documentFilterDefaults, documentFilterParams, type DocumentFilters as FilterState } from '../services/documentFilters'
 
@@ -236,6 +245,7 @@ function auditUrl(id: number) {
 }
 
 const filters = ref(documentFilterDefaults(true))
+const signedIn = computed(() => Boolean(getCurrentUser()?.uid))
 const isAdmin = computed(() => getCurrentUser()?.isAdmin ?? false)
 const documents = ref<ArchivedDocument[]>([])
 const senders = ref<Array<{id: string, name: string}>>([])
@@ -262,7 +272,7 @@ function validationUrl(uuid: string) {
 	return generateUrl('/apps/libresign/validation/{uuid}', { uuid })
 }
 async function load() {
-	if (!isAdmin.value || loading.value) return
+	if (!signedIn.value || loading.value) return
 	error.value = ''
 
 	loading.value = true
@@ -276,7 +286,7 @@ async function load() {
 	} catch {
 		documents.value = []
 		total.value = 0
-		error.value = t('libresign', 'Unable to load the archive. Check your administrator access and try again.')
+		error.value = t('libresign', 'Unable to load the archive. Try again.')
 	} finally {
 		loading.value = false
 	}
@@ -324,6 +334,8 @@ onMounted(load)
 .archive-import { display: grid; gap: 14px; padding-block: 8px; }
 .archive-import label { display: grid; gap: 6px; min-width: 0; }
 .archive-import .archive-import__confirmation { display: flex; align-items: center; }
+.archive-import__uploads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 620px) { .archive-import__uploads { grid-template-columns: minmax(0, 1fr); } }
 .archive-import__metadata { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; }
 .archive-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-block: 24px 12px; }
 .archive-filters label { display: flex; flex-direction: column; gap: 6px; }

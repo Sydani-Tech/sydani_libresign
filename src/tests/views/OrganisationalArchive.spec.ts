@@ -7,9 +7,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import axios from '@nextcloud/axios'
 import OrganisationalArchive from '../../views/OrganisationalArchive.vue'
 
-const auth = vi.hoisted(() => ({ admin: true }))
-vi.mock('@nextcloud/auth', () => ({ getCurrentUser: () => ({ uid: 'testuser', isAdmin: auth.admin }) }))
-vi.mock('@nextcloud/axios', () => ({ default: { get: vi.fn() } }))
+const auth = vi.hoisted(() => ({ admin: true, signedIn: true }))
+vi.mock('@nextcloud/auth', () => ({ getCurrentUser: () => auth.signedIn ? { uid: 'testuser', isAdmin: auth.admin } : null }))
+vi.mock('@nextcloud/axios', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('@nextcloud/l10n', () => globalThis.mockNextcloudL10n())
 vi.mock('@nextcloud/router', () => ({ generateUrl: (path: string, params: Record<string, unknown> = {}) => path.replace(/\{(\w+)\}/g, (_, key) => String(params[key])) }))
 vi.mock('@nextcloud/vue/components/NcAppContent', () => ({ default: { template: '<main><slot /></main>' } }))
@@ -26,6 +26,8 @@ const record = {
 describe('Organisational archive', () => {
 	beforeEach(() => {
 		auth.admin = true
+		auth.signedIn = true
+		vi.mocked(axios.post).mockReset()
 		vi.mocked(axios.get).mockReset().mockResolvedValue({ data: { data: [record], total: 1, senders: [{ id: 'alice', name: 'Alice' }] } })
 	})
 	it('shows protected documents, independent source deletion, and honest legacy dates', async () => {
@@ -85,13 +87,46 @@ describe('Organisational archive', () => {
         expect(wrapper.find('[role=dialog] ol').text()).toContain('Carol')
         expect(wrapper.find('[role=dialog] ol').text()).not.toContain('Bob');wrapper.unmount()
     })
-    it('does not fetch or expose archive records for ordinary users', async () => {
-		auth.admin = false
+    it('does not fetch archive records before sign-in', async () => {
+		auth.signedIn = false
 		const wrapper = mount(OrganisationalArchive)
 		await flushPromises()
 		expect(axios.get).not.toHaveBeenCalled()
-		expect(wrapper.text()).toContain('Administrator access required.')
+		expect(wrapper.text()).toContain('Sign in to use Signed Archive.')
 		expect(wrapper.text()).not.toContain('Archive QA')
+		wrapper.unmount()
+	})
+	it('lets a signed-in non-admin archive a PDF with the shared upload controls', async () => {
+		auth.admin = false
+		vi.mocked(axios.get).mockResolvedValue({ data: { data: [], total: 0, senders: [] } })
+		const wrapper = mount(OrganisationalArchive)
+		await flushPromises()
+		expect(wrapper.text()).toContain('view your own imports')
+		expect(wrapper.text()).not.toContain('Archive QA')
+		expect(wrapper.find('details').exists()).toBe(false)
+
+		await wrapper.findAll('button').find(button => button.text() === 'Archive a signed PDF')!.trigger('click')
+		const uploadCards = wrapper.find('.archive-import__uploads').findAll('.file-picker')
+		expect(uploadCards).toHaveLength(2)
+		const input = uploadCards[0].get('input[type="file"]')
+		const pdf = new File(['%PDF-synthetic'], 'sample.pdf', { type: 'application/pdf' })
+		Object.defineProperty(input.element, 'files', { value: [pdf] })
+		await input.trigger('change')
+		await wrapper.get('#external-archive-import input[type="checkbox"]').setValue(true)
+		const imported = { ...record, name: 'sample', external: { importedBy: 'testuser', importedAt: '2026-10-16T10:00:00Z' } }
+		vi.mocked(axios.post).mockResolvedValueOnce({ data: imported })
+		vi.mocked(axios.get)
+			.mockResolvedValueOnce({ data: { data: [imported], total: 1, senders: [] } })
+			.mockResolvedValueOnce({ data: imported })
+			.mockResolvedValueOnce({ data: { fileMatch: true, longTermValidation: { checked: true, signatures: [] } } })
+		await wrapper.get('#external-archive-import').trigger('submit')
+		await flushPromises()
+
+		const [url, data] = vi.mocked(axios.post).mock.calls[0]
+		expect(url).toBe('/apps/libresign/archive/import')
+		expect((data as FormData).get('pdf')).toEqual(pdf)
+		expect((data as FormData).get('confirmed')).toBe('yes')
+		expect(wrapper.find('[role="dialog"]').text()).toContain('The PDF matches the archived fingerprint.')
 		wrapper.unmount()
 	})
 	it('sends distinct requested-date filters with sender and recipient', async () => {
