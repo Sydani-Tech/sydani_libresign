@@ -12,6 +12,11 @@
    <option value="completed">{{ t('libresign', 'Completed') }}</option>
    <option v-if="!archive" value="signing">{{ t('libresign', 'Signing in progress') }}</option>
   </select></label>
+  <label v-if="archive">{{ t('libresign', 'Signing source') }}<select v-model="draft.signingOrigin">
+   <option value="">{{ t('libresign', 'All signing sources') }}</option>
+   <option value="internal">{{ t('libresign', 'Signed in LibreSign') }}</option>
+   <option value="external">{{ t('libresign', 'Signed externally') }}</option>
+  </select></label>
  </div>
  <component :is="compact ? 'details' : 'div'" class="document-filters__advanced">
   <summary v-if="compact">{{ t('libresign', 'More filters and sorting') }}<span v-if="advancedCount"> · {{ t('libresign', '{count} applied', {count:advancedCount}) }}</span></summary>

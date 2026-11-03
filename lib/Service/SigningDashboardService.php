@@ -44,6 +44,7 @@ class SigningDashboardService {
 			->leftJoin('f', 'libresign_camp_rcpt', 'cr', 'cr.file_id = f.id')
 			->leftJoin('cr', 'libresign_campaign', 'c', 'c.id = cr.campaign_id')
 			->where($e->isNull('ids.id'))->andWhere($e->neq('f.status', $q->createNamedParameter(4, IQueryBuilder::PARAM_INT)));
+		$q->andWhere($e->eq('f.externally_signed', $q->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
 		if (in_array($view, ['sent', 'completed'], true)) {
 			$q->andWhere($e->eq('f.user_id', $q->createNamedParameter($user->getUID())));
 		} else {

@@ -549,7 +549,7 @@ class ValidateHelper {
 
 	public function iRequestedSignThisFile(IUser $user, int $fileId): void {
 		$libresignFile = $this->fileMapper->getById($fileId);
-		if ($libresignFile->getUserId() !== $user->getUID()) {
+		if ($libresignFile->getExternallySigned() || $libresignFile->getUserId() !== $user->getUID()) {
 			throw new LibresignException($this->l10n->t('You do not have permission for this action.'));
 		}
 	}

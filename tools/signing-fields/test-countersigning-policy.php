@@ -28,4 +28,18 @@ $reject(fn()=>Policy::appended('original','original+LT',$before,['checked'=>true
 $reject(fn()=>Policy::appended('original','original+LT',$before,['checked'=>true,'signatures'=>[array_replace($old,['revision'=>array_replace($revision,['undefinedChanges'=>1])]),$new]],'C-TEST',true),'cannot append unexplained changes');
 $reject(fn()=>Policy::appended('original','original+T',$before,['checked'=>true,'signatures'=>[$old,array_replace($new,['format'=>'PAdES_BASELINE_T'])]],'C-TEST',true),'cannot publish an intermediate signature');
 $reject(fn()=>Policy::appended('original','original+LT',$before,$valid,'C-WRONG',true),'cannot substitute signing certificate');
+$scoped = array_replace($old, [
+ 'fieldLocked'=>true,
+ 'fieldLocks'=>[['action'=>'INCLUDE','permission'=>'','fields'=>['FirstSigner','Review']]],
+]);
+$lockedBefore = ['S-A1'=>$scoped];
+Policy::preflight($lockedBefore, [], 'SydaniSigner');
+$reject(fn()=>Policy::preflight($lockedBefore, [], 'Review.Signature'), 'a lock on a parent field protects its signature box');
+$allLocked = array_replace($scoped, ['fieldLocks'=>[['action'=>'ALL','permission'=>'','fields'=>[]]]]);
+$reject(fn()=>Policy::preflight(['S-A1'=>$allLocked], [], 'SydaniSigner'), 'a full field lock still blocks countersigning');
+$targeted = ['checked'=>true,'signatures'=>[$scoped,array_replace($new,['signatureFields'=>['SydaniSigner']])]];
+if (Policy::appended('original', 'original+LT', $lockedBefore, $targeted, 'C-TEST', true, 'SydaniSigner') !== ['S-B2']) {
+ throw new RuntimeException('Expected the signature in the selected PDF field');
+}
+$reject(fn()=>Policy::appended('original', 'original+LT', $lockedBefore, $targeted, 'C-TEST', true, 'AnotherField'), 'a signature outside the selected box cannot be saved');
 echo "PASS: an intact external signature can coexist with a newly verified LT signature\n";

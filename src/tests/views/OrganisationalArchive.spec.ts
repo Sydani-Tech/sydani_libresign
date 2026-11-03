@@ -114,6 +114,38 @@ describe('Organisational archive', () => {
 		}) }))
 		wrapper.unmount()
 	})
+	it('filters external imports and shows the archive match independently of signature trust', async () => {
+		const external = {
+			...record,
+			recipients: [],
+			external: {
+				senderName: 'External sender', senderEmail: 'sender@example.test', provider: 'DocuSign',
+				reference: 'envelope-123', importedBy: 'Administrator', importedAt: '2026-10-16T10:00:00Z',
+				completedDate: '', auditNodeId: 19,
+			},
+		}
+		vi.mocked(axios.get).mockResolvedValue({ data: { data: [external], total: 1, senders: [] } })
+		const wrapper = mount(OrganisationalArchive)
+		await flushPromises()
+		expect(wrapper.find('details').attributes('open')).toBeUndefined()
+		const source = wrapper.findAll('label').find(label => label.text().startsWith('Signing source'))!
+		await source.find('select').setValue('external')
+		await wrapper.find('form').trigger('submit')
+		await flushPromises()
+		expect(axios.get).toHaveBeenLastCalledWith('/apps/libresign/archive/list', expect.objectContaining({
+			params: expect.objectContaining({ signingOrigin: 'external' }),
+		}))
+		vi.mocked(axios.get)
+			.mockResolvedValueOnce({ data: external })
+			.mockResolvedValueOnce({ data: { fileMatch: true, longTermValidation: { checked: true, signatures: [] } } })
+		await wrapper.findAll('button').find(button => button.text() === 'Validate')!.trigger('click')
+		await flushPromises()
+		const dialog = wrapper.find('[role="dialog"]')
+		expect(dialog.text()).toContain('The PDF matches the archived fingerprint.')
+		expect(dialog.text()).toContain('No embedded digital signature detected.')
+		expect(dialog.find('a[href="/apps/libresign/archive/audit/7"]').exists()).toBe(true)
+		wrapper.unmount()
+	})
 	it('does not retain a stale listing after access fails', async () => {
 		const wrapper = mount(OrganisationalArchive)
 		await flushPromises()

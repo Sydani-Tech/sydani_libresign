@@ -30,11 +30,30 @@ public final class PadesReport {
    boolean timestampAnchored=!stamps.isEmpty();for(var ts:stamps){var t=diagnostic.getTimestampById(ts.getId());timestampAnchored&=t!=null&&t.isSignatureIntact()&&t.isSignatureValid()&&t.isTrustedChain();}
    String fingerprint=token.getSigningCertificate()==null?"":safe(token.getSigningCertificate().getId());
    System.out.println("INTEGRITY\t"+safe(id)+"\t"+(token.isSignatureIntact()&&token.isSignatureValid()?"1":"0")+"\t"+fingerprint+"\t"+safe(revision==null?null:revision.getDocMDPPermissions())+"\t"+(revision!=null&&(revision.getFieldMDP()!=null||revision.getSigFieldLock()!=null)?"1":"0")+"\t"+(token.isTrustedChain()?"1":"0")+"\t"+(coversFile?"1":"0")+"\t"+(timestampAnchored?"1":"0"));
+   if (revision != null) {
+    for (String field : revision.getSignatureFieldNames()) {
+     String encoded = Base64.getEncoder().encodeToString(field.getBytes(StandardCharsets.UTF_8));
+     System.out.println("SIGNED_FIELD\t" + safe(id) + "\t" + encoded);
+    }
+   }
+
+   if (revision != null) {
+    printLock(id, revision.getFieldMDP());
+    printLock(id, revision.getSigFieldLock());
+   }
    var rawRevision=diagnostic.getJaxbModel().getSignatures().stream().filter(s->id.equals(s.getId())).findFirst().map(s->s.getPDFRevision()).orElse(null);
    boolean revisionChecked=rawRevision!=null&&rawRevision.getModificationDetection()!=null&&rawRevision.getModificationDetection().getObjectModifications()!=null;
    if(revision!=null)System.out.println("REVISION\t"+safe(id)+"\t"+(revisionChecked?"1":"0")+"\t"+(revision.isSignatureByteRangeValid()?"1":"0")+"\t"+(revision.isPdfSignatureDictionaryConsistent()?"1":"0")+"\t"+revision.getPdfExtensionChanges().size()+"\t"+revision.getPdfSignatureOrFormFillChanges().size()+"\t"+revision.getPdfAnnotationChanges().size()+"\t"+revision.getPdfUndefinedChanges().size()+"\t"+revision.getPdfVisualDifferenceConcernedPages().size()+"\t"+revision.getPdfPageDifferenceConcernedPages().size()+"\t"+revision.getPdfAnnotationsOverlapConcernedPages().size());
    System.out.println("SIGNATURE\t"+safe(id)+"\t"+name+"\t"+safe(report.getSignatureFormat(id)==null?null:report.getSignatureFormat(id).name())+"\t"+safe(report.getIndication(id)==null?null:report.getIndication(id).name())+"\t"+safe(report.getSubIndication(id)==null?null:report.getSubIndication(id).name())+"\t"+(timestampValid?"1":"0")+"\t"+(time==null?"":time.toInstant().toString()));
   }
+ }
+
+ private static void printLock(String id, eu.europa.esig.dss.diagnostic.jaxb.XmlPDFLockDictionary lock) {
+  if (lock == null) return;
+  String fields = lock.getFields().stream()
+    .map(field -> Base64.getEncoder().encodeToString(field.getBytes(StandardCharsets.UTF_8)))
+    .collect(java.util.stream.Collectors.joining(","));
+  System.out.println("FIELD_LOCK\t" + safe(id) + "\t" + safe(lock.getAction()) + "\t" + safe(lock.getPermissions()) + "\t" + fields);
  }
  static CommonTrustedCertificateSource trustAnchors(String paths) throws Exception {
   CommonTrustedCertificateSource trusted=new CommonTrustedCertificateSource();CertificateFactory factory=CertificateFactory.getInstance("X.509");

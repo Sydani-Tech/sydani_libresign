@@ -264,17 +264,30 @@ class JSignPdfHandler extends Pkcs12Handler {
 		$verifier = $lt->enabled() ? \OCP\Server::get(\OCA\Libresign\Service\PadesVerificationService::class) : null;
 		$existing = [];
 		$mixed = false;
+		$checkedField = null;
+		$visibleElements = $this->getVisibleElements();
 		$fields = $this->getSignatureParams()['SigningFields'] ?? [];
 		if ($verifier && $this->hasExistingSignatures($inputPdf)) {
 			$existing = \OCA\Libresign\Service\PdfCountersigningPolicy::existing($verifier->verify($inputPdf));
 			$mixed = count(array_filter($existing, [\OCA\Libresign\Service\PdfCountersigningPolicy::class, 'isLt'])) !== count($existing);
-			if ($mixed) \OCA\Libresign\Service\PdfCountersigningPolicy::preflight($existing, $fields);
+			$hasFieldLocks = (bool)array_filter($existing, static fn (array $signature): bool => !empty($signature['fieldLocked']));
+			if ($mixed || $hasFieldLocks || !$fields) {
+				$available = array_values(array_filter(
+					$verifier->availableSignatureFields($inputPdf),
+					static fn (array $field): bool => \OCA\Libresign\Service\PdfCountersigningPolicy::permitsExistingField($existing, $field['name']),
+				));
+				$checkedField = $this->existingSignatureField($available, $visibleElements);
+				if ($mixed || $hasFieldLocks || $checkedField !== null) {
+					\OCA\Libresign\Service\PdfCountersigningPolicy::preflight($existing, $fields, $checkedField);
+					$mixed = true;
+				}
+			}
 		}
 		$lt->refreshLocalRevocation($this->getCertificate(), $this->getPassword());
 		$normalizedPdf = $mixed ? $inputPdf : $this->normalizePdfVersion($inputPdf);
 		$normalizedPdf = $this->pdfSigningFieldsService->fill($normalizedPdf, $fields);
-		$finish = function (string $signed) use ($mixed, $verifier, $inputPdf, $existing): string {
-			if ($mixed) return $verifier->completeCountersignature($inputPdf, $signed, $existing, $this->getCertificate(), $this->getPassword());
+		$finish = function (string $signed) use ($mixed, $verifier, $inputPdf, $existing, $checkedField): string {
+			if ($mixed) return $verifier->completeCountersignature($inputPdf, $signed, $existing, $this->getCertificate(), $this->getPassword(), $checkedField);
 			$verifier?->assertLt($signed);
 			return $signed;
 		};
@@ -286,7 +299,7 @@ class JSignPdfHandler extends Pkcs12Handler {
 			foreach (is_array($value) ? $value : [$value] as $argument) $tsaParams .= ' ' . $key . ' ' . escapeshellarg($argument);
 		}
 
-		$visibleElements = $this->getVisibleElements();
+		$fieldParams = $checkedField === null ? '' : ' -sf ' . escapeshellarg($checkedField) . (!$visibleElements ? ' -V' : '');
 		$certParams = '';
 		$certificationLevel = $this->getCertificationLevel();
 		if ($certificationLevel !== null && !$visibleElements && !$this->hasExistingSignatures($normalizedPdf)) {
@@ -297,6 +310,7 @@ class JSignPdfHandler extends Pkcs12Handler {
 			$param->getJSignParameters()
 			. $certParams
 			. $tsaParams
+			. $fieldParams
 		);
 		$param->setCertificate($this->getCertificate())
 			->setPdf($normalizedPdf)
@@ -317,6 +331,35 @@ class JSignPdfHandler extends Pkcs12Handler {
 		$jSignPdf->setParam($param);
 		$signed = $this->signWrapper($jSignPdf);
 		return $finish($signed);
+	}
+
+	/**
+	 * Reuse a box when the sender's marker is inside it. Without a marker,
+	 * choose an existing field only when the document offers exactly one.
+	 */
+	private function existingSignatureField(array $available, array $visibleElements): ?string {
+		if (!$visibleElements) {
+			if (count($available) > 1) {
+				throw new LibresignException('This PDF has several available signature fields. Place a signature marker inside the intended field.');
+			}
+			return $available[0]['name'] ?? null;
+		}
+		$matches = [];
+		foreach ($visibleElements as $element) {
+			$position = $element->getFileElement();
+			$x = ($position->getLlx() + $position->getUrx()) / 2;
+			$y = ($position->getLly() + $position->getUry()) / 2;
+			foreach ($available as $field) {
+				[$left, $bottom, $right, $top] = $field['rectangle'];
+				if ((int)$position->getPage() === $field['page'] && $x >= $left && $x <= $right && $y >= $bottom && $y <= $top) {
+					$matches[] = $field['name'];
+				}
+			}
+		}
+		if ($matches && (count($matches) !== 1 || count($visibleElements) !== 1)) {
+			throw new LibresignException('To reuse a PDF signature field, place one signature marker inside the intended field.');
+		}
+		return $matches[0] ?? null;
 	}
 
 	private function signUsingVisibleElements(string $normalizedPdf, string $hashAlgorithm): string {

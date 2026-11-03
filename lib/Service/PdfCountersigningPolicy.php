@@ -28,9 +28,34 @@ final class PdfCountersigningPolicy {
   return $existing;
  }
 
- public static function preflight(array $existing, array $fields): void {
+ /** Apply the locks in every signed revision, including locks on existing fields. */
+ public static function permitsExistingField(array $existing, string $name): bool {
   foreach ($existing as $signature) {
-   if (($signature['fieldLocked'] ?? null) !== false || !in_array($signature['docMdp'] ?? null, ['', 'MINIMAL_CHANGES_PERMITTED', 'CHANGES_PERMITTED'], true)) {
+   if (($signature['fieldLocked'] ?? null) === false) continue;
+   if (empty($signature['fieldLocks'])) return false;
+   foreach ($signature['fieldLocks'] as $lock) {
+    if (!in_array($lock['permission'], ['', 'MINIMAL_CHANGES_PERMITTED', 'CHANGES_PERMITTED'], true)) return false;
+    $action = strtoupper($lock['action']);
+    if (!in_array($action, ['INCLUDE', 'EXCLUDE'], true) || !$lock['fields']) return false;
+    $listed = false;
+    foreach ($lock['fields'] as $field) {
+     if ($name === $field || str_starts_with($name, $field . '.')) {
+      $listed = true;
+      break;
+     }
+    }
+    if (($action === 'INCLUDE' && $listed) || ($action === 'EXCLUDE' && !$listed)) return false;
+   }
+  }
+  return true;
+ }
+
+ public static function preflight(array $existing, array $fields, ?string $checkedField = null): void {
+  if ($checkedField !== null && !self::permitsExistingField($existing, $checkedField)) {
+   throw new LibresignException('A previous signature locks the selected PDF field.');
+  }
+  foreach ($existing as $signature) {
+   if ((($signature['fieldLocked'] ?? null) !== false && $checkedField === null) || !in_array($signature['docMdp'] ?? null, ['', 'MINIMAL_CHANGES_PERMITTED', 'CHANGES_PERMITTED'], true)) {
     throw new LibresignException('The PDF has signature permissions or a field lock that LibreSign cannot safely countersign. Ask the sender for a copy that allows additional signatures.');
    }
    self::assertPreserved($signature);
@@ -40,7 +65,7 @@ final class PdfCountersigningPolicy {
   }
  }
 
- public static function appended(string $source, string $candidate, array $existing, array $report, string $certificateId, bool $requireLt): array {
+ public static function appended(string $source, string $candidate, array $existing, array $report, string $certificateId, bool $requireLt, ?string $checkedField = null): array {
   if (strlen($candidate) <= strlen($source) || !str_starts_with($candidate, $source)) {
    throw new LibresignException('The previous PDF revision was not preserved. No signed document was saved.');
   }
@@ -54,6 +79,9 @@ final class PdfCountersigningPolicy {
   }
   $new = array_diff_key($all, $existing);
   if (!$new) throw new LibresignException('No new signature could be verified.');
+  if ($checkedField !== null && (count($new) !== 1 || !in_array($checkedField, reset($new)['signatureFields'] ?? [], true))) {
+   throw new LibresignException('The new signature did not use the selected PDF field. No signed document was saved.');
+  }
   foreach ($new as $signature) {
    self::assertPreserved($signature);
    if (($signature['certificateId'] ?? '') !== $certificateId

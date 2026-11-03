@@ -12,6 +12,7 @@ namespace OCA\Libresign\Controller;
 use OCA\Libresign\AppInfo\Application;
 use OCA\Libresign\Service\ArchiveQueryService;
 use OCA\Libresign\Service\DocumentArchiveService;
+use OCA\Libresign\Service\ExternalArchiveService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -27,6 +28,7 @@ class ArchiveController extends Controller {
 		IRequest $request,
 		private ArchiveQueryService $archiveQuery,
 		private DocumentArchiveService $documentArchive,
+		private ExternalArchiveService $externalArchive,
 		private IUserSession $userSession,
 		private IGroupManager $groupManager,
 	) {
@@ -40,14 +42,96 @@ class ArchiveController extends Controller {
 
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/archive/list')]
-	public function index(int $page = 1, int $length = 25, string $name = '', string $sender = '', string $recipient = '', string $status = 'completed', string $dateBy = 'completed', ?int $from = null, ?int $to = null, string $sortBy = 'completed', string $direction = 'desc', string $recipientName = '', string $recipientEmail = '', string $letterhead = ''): DataResponse {
+	public function index(int $page = 1, int $length = 25, string $name = '', string $sender = '', string $recipient = '', string $status = 'completed', string $dateBy = 'completed', ?int $from = null, ?int $to = null, string $sortBy = 'completed', string $direction = 'desc', string $recipientName = '', string $recipientEmail = '', string $letterhead = '', string $signingOrigin = ''): DataResponse {
 		if (!$this->isAdmin()) {
 			return new DataResponse(['message' => 'Administrator access required'], 403);
 		}
 		if (($from !== null && $to !== null && $from > $to) || strlen($name) > 200 || strlen($recipient) > 200 || strlen($recipientName) > 200 || strlen($recipientEmail) > 200) {
 			return new DataResponse(['message' => 'Invalid archive filter'], 400);
 		}
-		return new DataResponse($this->archiveQuery->list(compact('letterhead', 'name', 'sender', 'recipient', 'recipientName', 'recipientEmail', 'status', 'dateBy', 'from', 'to', 'sortBy', 'direction'), $page, $length), 200, ['Cache-Control' => 'private, no-store']);
+		return new DataResponse($this->archiveQuery->list(compact('signingOrigin', 'letterhead', 'name', 'sender', 'recipient', 'recipientName', 'recipientEmail', 'status', 'dateBy', 'from', 'to', 'sortBy', 'direction'), $page, $length), 200, ['Cache-Control' => 'private, no-store']);
+	}
+
+	#[FrontpageRoute(verb: 'POST', url: '/archive/inspect')]
+	public function inspect(): DataResponse {
+		if (!$this->isAdmin()) {
+			return new DataResponse(['message' => 'Administrator access required'], 403);
+		}
+		$pdf = $this->request->getUploadedFile('pdf');
+		if (!$pdf) {
+			return new DataResponse(['message' => 'Choose a completed PDF.'], 422);
+		}
+		try {
+			return new DataResponse($this->externalArchive->inspect($pdf), 200, ['Cache-Control' => 'private, no-store']);
+		} catch (\InvalidArgumentException|\OCA\Libresign\Exception\LibresignException $e) {
+			return new DataResponse(['message' => $e->getMessage()], 422);
+		}
+	}
+
+	#[FrontpageRoute(verb: 'POST', url: '/archive/import')]
+	public function import(string $confirmed = '', string $senderName = '', string $senderEmail = '', string $provider = '', string $reference = '', string $completedDate = ''): DataResponse {
+		$user = $this->userSession->getUser();
+		if (!$user || !$this->isAdmin()) {
+			return new DataResponse(['message' => 'Administrator access required'], 403);
+		}
+		$pdf = $this->request->getUploadedFile('pdf');
+		if (!$pdf) {
+			return new DataResponse(['message' => 'Choose a completed PDF.'], 422);
+		}
+		if ($confirmed !== 'yes') {
+			return new DataResponse(['message' => 'Confirm that the PDF was signed externally.'], 422);
+		}
+		$metadata = compact('senderName', 'senderEmail', 'provider', 'reference', 'completedDate');
+		foreach ($metadata as $value) {
+			if (strlen($value) > 250) {
+				return new DataResponse(['message' => 'Archive details must be at most 250 bytes per field.'], 422);
+			}
+		}
+		try {
+			$file = $this->externalArchive->import($pdf, $this->request->getUploadedFile('audit') ?: null, $user->getUID(), $metadata);
+			return new DataResponse($this->archiveQuery->describe($file), 201, ['Cache-Control' => 'private, no-store']);
+		} catch (\InvalidArgumentException|\OCA\Libresign\Exception\LibresignException $e) {
+			return new DataResponse(['message' => $e->getMessage()], 422);
+		} catch (\OCP\Lock\LockedException) {
+			return new DataResponse(['message' => 'This PDF is already being imported. Try again shortly.'], 409);
+		}
+	}
+
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/archive/verify/{fileId}')]
+	public function verifyExternal(int $fileId): DataResponse {
+		if (!$this->isAdmin()) {
+			return new DataResponse(['message' => 'Administrator access required'], 403);
+		}
+		try {
+			$file = $this->archiveQuery->getProtectedFile($fileId);
+			if ($file->getExternallySigned()) {
+				return new DataResponse($this->externalArchive->verify($file), 200, ['Cache-Control' => 'private, no-store']);
+			}
+		} catch (\OCP\AppFramework\Db\DoesNotExistException|\OCP\Files\NotFoundException) {
+		}
+		return new DataResponse(['message' => 'Imported PDF not found'], 404);
+	}
+
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/archive/audit/{fileId}')]
+	public function audit(int $fileId): FileDisplayResponse|DataResponse {
+		if (!$this->isAdmin()) {
+			return new DataResponse(['message' => 'Administrator access required'], 403);
+		}
+		try {
+			$file = $this->archiveQuery->getProtectedFile($fileId);
+			if ($file->getExternallySigned()) {
+				return new FileDisplayResponse($this->externalArchive->audit($file), 200, [
+					'Content-Type' => 'application/pdf',
+					'Content-Disposition' => 'attachment; filename="external-audit.pdf"',
+					'Cache-Control' => 'private, no-store',
+					'X-Content-Type-Options' => 'nosniff',
+				]);
+			}
+		} catch (\OCP\AppFramework\Db\DoesNotExistException|\OCP\Files\NotFoundException) {
+		}
+		return new DataResponse(['message' => 'Audit report not found'], 404);
 	}
 
 	#[NoCSRFRequired]

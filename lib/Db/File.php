@@ -17,6 +17,7 @@ use OCP\DB\Types;
 /**
  * @method void setId(int $id)
  * @method int getId()
+ * @method void setExternallySigned(int $externallySigned)
  * @method void setNodeId(?int $nodeId)
  * @method ?int getNodeId()
  * @method void setSignedNodeId(?int $nodeId)
@@ -53,6 +54,7 @@ use OCP\DB\Types;
  * @method ?\DateTime getCompletedAt()
  */
 class File extends Entity {
+	protected int $externallySigned = 0;
 	protected ?int $nodeId = null;
 	protected string $uuid = '';
 	protected ?\DateTime $createdAt = null;
@@ -78,6 +80,7 @@ class File extends Entity {
 
 	public function __construct() {
 		$this->addType('id', Types::INTEGER);
+		$this->addType('externallySigned', Types::SMALLINT);
 		$this->addType('nodeId', Types::INTEGER);
 		$this->addType('signedNodeId', Types::INTEGER);
 		$this->addType('signedHash', Types::STRING);
@@ -95,6 +98,10 @@ class File extends Entity {
 		$this->addType('parentFileId', Types::INTEGER);
 		$this->addType('requestedAt', Types::DATETIME);
 		$this->addType('completedAt', Types::DATETIME);
+	}
+
+	public function getExternallySigned(): bool {
+		return $this->externallySigned === 1;
 	}
 
 	public function isDeletedAccount(): bool {

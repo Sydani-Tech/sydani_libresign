@@ -329,6 +329,9 @@ class AccountService {
 	 */
 	public function getPdfByUuid(string $uuid): File {
 		$fileData = $this->fileMapper->getByUuid($uuid);
+		if ($fileData->getExternallySigned()) {
+			throw new DoesNotExistException('Not found');
+		}
 
 		// Approved letterheads are stored in appdata, outside the creator's Files.
 		// Retain the release check before resolving their source or signed master.

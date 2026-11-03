@@ -44,6 +44,10 @@ class ArchiveQueryService {
 			default => [FileStatus::SIGNED->value],
 		};
 		$qb->andWhere($qb->expr()->in('f.status', $qb->createNamedParameter($statuses, IQueryBuilder::PARAM_INT_ARRAY)));
+		$origin = $filter['signingOrigin'] ?? '';
+		if (in_array($origin, ['external', 'internal'], true)) {
+			$qb->andWhere($qb->expr()->eq('f.externally_signed', $qb->createNamedParameter($origin === 'external' ? 1 : 0, IQueryBuilder::PARAM_INT)));
+		}
 		DocumentListFilter::apply($qb, $this->db, $this->userManager, $filter);
 		if (!empty($filter['recipient'])) {
 			$needle = $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($filter['recipient']) . '%');
@@ -123,10 +127,17 @@ class ArchiveQueryService {
 			];
 		}
 		usort($recipients, static fn ($a, $b) => $a['order'] <=> $b['order']);
+		$external = $file->getExternallySigned() ? ($file->getMetadata() ?? [])['external_archive'] ?? [] : null;
+		$sender = ['id' => $file->getUserId(), 'name' => $this->userManager->get($file->getUserId())?->getDisplayName() ?? $file->getUserId()];
+		if ($external !== null) {
+			$external['importedBy'] = $sender['name'];
+			$sender = ['id' => '', 'name' => ($external['senderName'] ?? '') ?: ($external['senderEmail'] ?? '')];
+		}
 		return [
+			'external' => $external,
 			'id' => $file->getId(), 'uuid' => $file->getUuid(), 'name' => $file->getName(),
 			'status' => $file->getStatus(), 'statusText' => $this->fileMapper->getTextOfStatus($file->getStatus()),
-			'sender' => ['id' => $file->getUserId(), 'name' => $this->userManager->get($file->getUserId())?->getDisplayName() ?? $file->getUserId()],
+			'sender' => $sender,
 			'recipients' => $recipients,
 			'requestedAt' => $file->getRequestedAt()?->format(\DateTimeInterface::ATOM),
 			'completedAt' => $file->getCompletedAt()?->format(\DateTimeInterface::ATOM),
@@ -139,7 +150,8 @@ class ArchiveQueryService {
 	private function senders(): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->selectDistinct('user_id')->from('libresign_file')
-			->where($qb->expr()->isNotNull('signed_hash'));
+			->where($qb->expr()->isNotNull('signed_hash'))
+			->andWhere($qb->expr()->eq('externally_signed', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
 		$senders = [];
 		foreach ($qb->executeQuery()->fetchAll() as $row) {
 			$uid = (string)$row['user_id'];

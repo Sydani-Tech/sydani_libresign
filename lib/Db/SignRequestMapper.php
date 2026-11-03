@@ -721,6 +721,7 @@ class SignRequestMapper extends CachedQBMapper {
 			}
 		}
 
+		$qb->andWhere($qb->expr()->eq('f.externally_signed', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
 		\OCA\Libresign\Service\DocumentListFilter::apply($qb, $this->db, $this->userManager, $filter);
 
 		if (!empty($sort['sortBy']) && !empty($sort['sortDirection'])) {

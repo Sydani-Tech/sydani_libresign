@@ -296,7 +296,7 @@ class FileService {
 			throw new LibresignException($this->l10n->t('Invalid data to validate file'), 404);
 		}
 
-		if (!$file instanceof File) {
+		if (!$file instanceof File || $file->getExternallySigned()) {
 			throw new LibresignException($this->l10n->t('Invalid file identifier'), 404);
 		}
 
@@ -600,7 +600,7 @@ class FileService {
 		$this->loadSigners();
         if ($this->options->isValidateFile() && ($this->fileData->nodeType ?? 'file') !== 'envelope') {
          $content = $this->fileContent ?: (($this->file instanceof File && $this->file->getSignedNodeId()) ? $this->getFile()->getContent() : '');
-         if ($content !== '') $this->fileData->longTermValidation = \OCP\Server::get(PadesVerificationService::class)->verify($content);
+         if ($content !== '') $this->fileData->longTermValidation = \OCP\Server::get(PadesVerificationService::class)->userReport($content);
         }
 		$this->loadVisibleElements();
 		$this->loadMessages();
