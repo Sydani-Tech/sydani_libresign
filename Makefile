@@ -124,6 +124,7 @@ appstore: verify-release-metadata
 		l10n \
 		lib \
 		resources \
+		tools \
 		templates \
 		vendor \
 		3rdparty \
@@ -199,6 +200,7 @@ verify-appstore-package: verify-release-metadata
 	test -f $(appstore_sign_dir)/$(app_name)/resources/pades-report.jar
 	test -f $(appstore_sign_dir)/$(app_name)/resources/letterhead-pdf.jar
 	php tools/packaging/check-frontend-assets.php "$(appstore_sign_dir)/$(app_name)"
+	php tools/packaging/check-shell-scripts.php "$(appstore_sign_dir)/$(app_name)"
 	find \
 		$(appstore_sign_dir)/$(app_name)/js \
 		$(appstore_sign_dir)/$(app_name)/dist \

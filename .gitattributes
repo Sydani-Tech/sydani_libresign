@@ -1,3 +1,6 @@
 # SPDX-FileCopyrightText: 2020-2024 LibreCode coop and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 /js/* binary
+
+# Deployment helpers must remain executable when a release is archived on Windows.
+*.sh text eol=lf
