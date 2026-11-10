@@ -7,15 +7,18 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const axiosGetMock = vi.fn()
+const axiosPostMock = vi.fn().mockResolvedValue({ data: {} })
 const generateOcsUrlMock = vi.fn((path: string) => path)
 const confirmPasswordMock = vi.fn(() => Promise.resolve())
 const fetchEffectivePoliciesMock = vi.fn(async () => {})
 const getEffectiveValueMock = vi.fn(() => '{"allowGroups":["admin"],"denyGroups":[]}')
 const saveSystemPolicyMock = vi.fn(async () => ({ policyKey: 'groups_request_sign' }))
+const loadStateMock = vi.fn(() => false)
 
 vi.mock('@nextcloud/axios', () => ({
 	default: {
 		get: axiosGetMock,
+		post: axiosPostMock,
 	},
 }))
 
@@ -26,6 +29,12 @@ vi.mock('@nextcloud/router', () => ({
 vi.mock('@nextcloud/password-confirmation', () => ({
 	confirmPassword: () => confirmPasswordMock(),
 }))
+
+vi.mock('@nextcloud/initial-state', () => ({
+	loadState: loadStateMock,
+}))
+
+vi.mock('@nextcloud/vue/components/NcCheckboxRadioSwitch', () => ({default: {name: 'NcCheckboxRadioSwitch', props: ['modelValue'], emits: ['update:modelValue'], template: '<label><slot /></label>'}}))
 
 vi.mock('@nextcloud/l10n', () => globalThis.mockNextcloudL10n())
 
@@ -45,6 +54,8 @@ beforeAll(async () => {
 describe('AllowedGroups', () => {
 	beforeEach(() => {
 		axiosGetMock.mockReset()
+		axiosPostMock.mockClear()
+		loadStateMock.mockReturnValue(false)
 		generateOcsUrlMock.mockClear()
 		confirmPasswordMock.mockClear()
 		fetchEffectivePoliciesMock.mockClear()
@@ -112,6 +123,7 @@ describe('AllowedGroups', () => {
 			global: {
 				stubs: {
 					NcSettingsSection: { template: '<div><slot /></div>' },
+					NcCheckboxRadioSwitch: { template: '<div><slot /></div>' },
 					NcSelect: {
 						name: 'NcSelect',
 						props: ['modelValue'],
@@ -177,6 +189,7 @@ describe('AllowedGroups', () => {
 			global: {
 				stubs: {
 					NcSettingsSection: { template: '<div><slot /></div>' },
+					NcCheckboxRadioSwitch: { template: '<div><slot /></div>' },
 					NcSelect: {
 						name: 'NcSelect',
 						props: ['modelValue'],
@@ -271,6 +284,7 @@ describe('AllowedGroups', () => {
 			global: {
 				stubs: {
 					NcSettingsSection: { template: '<div><slot /></div>' },
+					NcCheckboxRadioSwitch: { template: '<div><slot /></div>' },
 					NcSelect: {
 						name: 'NcSelect',
 						props: ['modelValue'],
@@ -312,6 +326,7 @@ describe('AllowedGroups', () => {
 			global: {
 				stubs: {
 					NcSettingsSection: { template: '<div><slot /></div>' },
+					NcCheckboxRadioSwitch: { template: '<div><slot /></div>' },
 					NcSelect: {
 						name: 'NcSelect',
 						// Expose disabled/loading so the test can assert the input stays enabled.
@@ -345,4 +360,15 @@ describe('AllowedGroups', () => {
 		expect(searchCalls.length).toBe(1)
 		expect((searchCalls[0] as [string, { params: { search: string } }])[1].params.search).toBe('fin')
 	})
+	it('allows all signed-in users through the administrator switch', async () => {
+		loadStateMock.mockReturnValue(true)
+		axiosGetMock.mockResolvedValue({data:{ocs:{data:{groups:[]}}}})
+		const wrapper = mount(AllowedGroups as never, {global:{stubs:{NcSettingsSection:{template:'<div><slot /></div>'},NcSelect:true}}})
+		await flushPromises()
+		expect(wrapper.findComponent({name:'NcSelect'}).exists()).toBe(false)
+		await (wrapper.vm as unknown as {saveAllSignedInUsers:()=>Promise<void>}).saveAllSignedInUsers()
+		expect(axiosPostMock).toHaveBeenCalledWith('apps/libresign/api/v1/admin/all-signed-in-request-sign/config',{enabled:true})
+		wrapper.unmount()
+	})
+
 })

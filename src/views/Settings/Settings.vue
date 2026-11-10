@@ -13,10 +13,16 @@
 		<RootCertificateCfssl />
 		<RootCertificateOpenSsl />
 		<SettingsPolicyWorkbench />
+		<AllowedGroups />
+		<CampaignGroups />
+		<ScheduledReminders />
 	</div>
 </template>
 
 <script setup lang="ts">
+import AllowedGroups from './AllowedGroups.vue'
+import CampaignGroups from './CampaignGroups.vue'
+import ScheduledReminders from './ScheduledReminders.vue'
 import CertificateEngine from './CertificateEngine.vue'
 import ConfigureCheck from './ConfigureCheck.vue'
 import DownloadBinaries from './DownloadBinaries.vue'

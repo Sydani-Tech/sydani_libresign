@@ -8,7 +8,7 @@
 		:loading="loading"
 		:caption="caption">
 		<template #filters>
-			<FileListFilterChips />
+			<FileListFilterChips v-if="!filesStore.reportFilters" />
 		</template>
 		<template v-if="!isNoneSelected" #header-overlay>
 			<span class="files-list__selected">
@@ -55,7 +55,7 @@ defineProps<{
 	loading: boolean
 }>()
 
-useFilesStore()
+const filesStore = useFilesStore()
 const selectionStore = useSelectionStore()
 const userConfigStore = useUserConfigStore()
 

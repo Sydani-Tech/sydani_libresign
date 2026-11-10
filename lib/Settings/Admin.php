@@ -11,6 +11,7 @@ namespace OCA\Libresign\Settings;
 use OCA\Libresign\AppInfo\Application;
 use OCA\Libresign\Handler\CertificateEngine\CertificateEngineFactory;
 use OCA\Libresign\Service\AccountService;
+use OCA\Libresign\Helper\FrontendAssets;
 use OCA\Libresign\Service\CertificatePolicyService;
 use OCA\Libresign\Service\Policy\PolicyService;
 use OCP\AppFramework\Http\ContentSecurityPolicy;
@@ -19,7 +20,6 @@ use OCP\AppFramework\Services\IInitialState;
 use OCP\IAppConfig;
 use OCP\IUserSession;
 use OCP\Settings\ISettings;
-use OCP\Util;
 
 class Admin implements ISettings {
 	public const PASSWORD_PLACEHOLDER = '••••••••';
@@ -36,8 +36,9 @@ class Admin implements ISettings {
 	}
 	#[\Override]
 	public function getForm(): TemplateResponse {
-		Util::addScript(Application::APP_ID, 'libresign-settings');
-		Util::addStyle(Application::APP_ID, 'libresign-settings');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-settings');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-settings');
+		$this->initialState->provideInitialState('allow_all_signed_in_request_sign', $this->appConfig->getValueBool(Application::APP_ID, 'allow_all_signed_in_request_sign', true));
 		$this->initialState->provideInitialState('config', $this->accountService->getConfig($this->userSession->getUser()));
 		$this->initialState->provideInitialState('certificate_engine', $this->certificateEngineFactory->getEngine()->getName());
 		$this->initialState->provideInitialState('certificate_policies_oid', $this->certificatePolicyService->getOid());

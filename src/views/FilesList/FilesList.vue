@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcAppContent :page-heading="t('libresign', 'Files')">
+	<NcAppContent :page-heading="t('libresign', 'Request Signatures')">
 		<div class="files-list__dropzone"
 			@dragenter="onDragEnter"
 			@dragover="onDragOver"
@@ -14,44 +14,25 @@
 				<!-- TRANSLATORS Instruction shown while dragging files over the file list. Dropping files here uploads them so they can be sent for signature. -->
 				<p>{{ t('libresign', 'Drop files here to upload') }}</p>
 			</div>
-			<div class="files-list__header">
-				<!-- Request picker -->
-				<RequestPicker ref="requestPickerRef" variant="primary" />
+			<section v-if="canRequestSign" class="request-start" :aria-label="t('libresign', 'Start a signing request')">
+ <div class="request-start__intro"><h2>{{ t('libresign', 'Request Signatures') }}</h2><p>{{ t('libresign', 'Choose a document, add your signers and place the fields they need to complete.') }}</p></div>
+ <div class="request-start__choices"><RequestPicker ref="requestPickerRef" :inline="true" variant="primary" /><div class="request-start__letterhead"><strong>{{ t('libresign', 'Need a letterhead?') }}</strong><span>{{ t('libresign', 'Apply a shared letterhead and complete its approval and signing steps.') }}</span><NcButton :to="{name:'letterheads',query:{new:'1'}}" variant="secondary">{{ t('libresign', 'Use a Letterhead') }}</NcButton></div></div>
+</section>
+<div class="files-list__header">
+				<!-- All document creation uses the shared starting panel above. -->
 
-				<!-- Current folder breadcrumbs -->
-				<NcBreadcrumbs class="files-list__breadcrumbs">
-					<NcBreadcrumb v-model:open="isMenuOpen"
-						:name="t('libresign', 'Files')"
-						:title="t('libresign', 'Files')"
-						:force-icon-text="true"
-						:to="{ name: 'fileslist' }"
-						:aria-description="t('libresign', 'Files')"
-						:disable-drop="true"
-						force-menu>
-						<template #icon>
-							<NcIconSvgWrapper :size="20"
-								:svg="viewIcon" />
-						</template>
-						<template #menu-icon>
-							<NcIconSvgWrapper :path="isMenuOpen ? mdiChevronUp : mdiChevronDown" />
-						</template>
-						<!-- Reload button -->
-						<NcActionButton close-after-click @click="refresh()">
-							<template #icon>
-								<NcIconSvgWrapper :path="mdiReload" />
-							</template>
-							<!-- TRANSLATORS Button inside the breadcrumb dropdown menu that reloads the file list -->
-							{{ t('libresign', 'Reload content') }}
-						</NcActionButton>
-					</NcBreadcrumb>
-				</NcBreadcrumbs>
+				<h2 class="files-list__title">{{ t('libresign', 'Documents') }}</h2>
+				<NcButton class="files-list__reload" :disabled="filesStore.loading" @click="refresh">
+					<template #icon><NcIconSvgWrapper :path="mdiReload" /></template>
+					{{ t('libresign', 'Reload Content') }}
+				</NcButton>
 
 				<NcLoadingIcon v-if="isRefreshing"
 					class="files-list__refresh-icon"
 					:name="t('libresign', 'File list is reloading')" />
 
 				<!-- Filters that can be applied to the file list -->
-				<FileListFilters />
+
 
 				<NcButton :aria-label="gridViewButtonLabel"
 					:title="gridViewButtonLabel"
@@ -64,7 +45,9 @@
 					</template>
 				</NcButton>
 			</div>
-			<FilesListVirtual :nodes="dirContentsSorted"
+			<div class="files-list__filters-panel"><DocumentFilters :compact="true" :model-value="filesStore.reportFilters || defaultFilters" :senders="filesStore.senders" :loading="filesStore.loading" @apply="applyFilters" /></div>
+			<p v-if="loadError" class="files-list__error" role="alert">{{ loadError }}</p>
+			<FilesListVirtual class="files-list__records" :nodes="dirContentsSorted"
 				:loading="loading">
 				<template #empty>
 					<NcLoadingIcon
@@ -74,19 +57,17 @@
 						:name="t('libresign', 'Loading …')" />
 
 					<NcEmptyContent
-						v-else-if="!loading && isEmptyDir && filtersStore.activeChips.length === 0"
+						v-else-if="!loading && isEmptyDir && !hasActiveFilters"
 						:name="t('libresign', 'There are no documents')"
 						:description="canRequestSign ? t('libresign', 'Choose a file to create a signature request.') : ''">
-						<template v-if="canRequestSign" #action>
-							<RequestPicker variant="primary" />
-						</template>
+
 						<template #icon>
 							<NcIconSvgWrapper :path="mdiFolder" />
 						</template>
 					</NcEmptyContent>
 
 					<NcEmptyContent
-						v-else-if="!loading && isEmptyDir && filtersStore.activeChips.length > 0"
+						v-else-if="!loading && isEmptyDir && hasActiveFilters"
 						:name="t('libresign', 'No documents found')">
 						<template #icon>
 							<NcIconSvgWrapper :path="mdiFolder" />
@@ -104,7 +85,7 @@ import { t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
-import HomeSvg from '@mdi/svg/svg/home.svg?raw'
+
 import {
 	mdiChevronDown,
 	mdiChevronUp,
@@ -115,19 +96,21 @@ import {
 	mdiViewGridOutline,
 } from '@mdi/js'
 
-import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
-import NcBreadcrumb from '@nextcloud/vue/components/NcBreadcrumb'
-import NcBreadcrumbs from '@nextcloud/vue/components/NcBreadcrumbs'
+
+
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 
-import FileListFilters from './FileListFilters.vue'
+import DocumentFilters from '../../components/DocumentFilters/DocumentFilters.vue'
+import { documentFilterDefaults, type DocumentFilters as FilterState } from '../../services/documentFilters'
 import FilesListVirtual from './FilesListVirtual.vue'
 import RequestPicker from '../../components/Request/RequestPicker.vue'
 
+import { useFilesSortingStore } from '../../store/filesSorting.js'
 import { useFilesStore } from '../../store/files.js'
 import { useFiltersStore } from '../../store/filters.js'
 import { useSignStore } from '../../store/sign.js'
@@ -140,6 +123,7 @@ defineOptions({
 })
 
 const filesStore = useFilesStore()
+const sortingStore = useFilesSortingStore()
 const filtersStore = useFiltersStore()
 const signStore = useSignStore()
 const userConfigStore = useUserConfigStore()
@@ -153,7 +137,8 @@ const isDraggingFiles = ref(false)
 const dragDepth = ref(0)
 
 const canRequestSign = computed(() => filesStore.canRequestSign)
-const viewIcon = computed(() => HomeSvg)
+const defaultFilters = documentFilterDefaults()
+const loadError = ref('')
 const isGridView = computed(() => Boolean(userConfigStore.files_list_grid_view))
 const gridViewButtonLabel = computed(() => {
 	return isGridView.value
@@ -162,10 +147,25 @@ const gridViewButtonLabel = computed(() => {
 })
 const dirContentsSorted = computed(() => filesStore.filesSorted())
 const isEmptyDir = computed(() => filesStore.filesSorted().length === 0)
+const hasActiveFilters = computed(() => {
+	const filters = filesStore.reportFilters
+	return Boolean(filters && (filters.name || filters.sender || filters.recipientName || filters.recipientEmail || filters.fromDate || filters.toDate || filters.status !== 'all')) || filtersStore.activeChips.length > 0
+})
 const isRefreshing = computed(() => !isEmptyDir.value && loading.value)
 
-function refresh() {
-	filesStore.updateAllFiles()
+async function refresh() {
+	loadError.value = ''
+	try { await filesStore.updateAllFiles() } catch { loadError.value = t('libresign', 'Unable to load files. Please try again.') }
+}
+function syncSorting(value: FilterState) {
+	const columns: Record<string, string> = { requested: 'requested_at', completed: 'completed_at', created: 'created_at', sender: 'user_id' }
+	sortingStore.sortingMode = columns[value.sortBy] || value.sortBy
+	sortingStore.sortingDirection = value.direction
+}
+async function applyFilters(value: FilterState) {
+	filesStore.reportFilters = value
+	syncSorting(value)
+	await refresh()
 }
 
 function toggleGridView() {
@@ -239,7 +239,9 @@ async function checkAndOpenFileFromUri() {
 }
 
 onMounted(async () => {
-	await filesStore.getAllFiles({ force_fetch: true })
+	filesStore.reportFilters ||= documentFilterDefaults()
+	syncSorting(filesStore.reportFilters)
+	await refresh()
 	loading.value = false
 	filesStore.disableIdentifySigner()
 	await checkAndOpenFileFromUri()
@@ -278,9 +280,20 @@ defineExpose({
 	position: relative !important;
 }
 
+.request-start { flex:0 0 auto; margin:20px; padding:24px; border:1px solid var(--color-border); border-radius:16px; background:var(--color-main-background); }
+.request-start h2 { font-size:28px; font-weight:650; margin-bottom:8px; }.request-start p { line-height:1.6; margin-bottom:18px; color:var(--color-text-maxcontrast); }
+.request-start__choices { display:flex; gap:24px; align-items:start; flex-wrap:wrap; }.request-start__choices > :first-child { flex:1 1 350px; }.request-start__choices :deep(.request-picker-buttons) { display:flex; flex-flow:row wrap; gap:10px; align-items:start; }
+.request-start__letterhead { flex:1 1 260px; display:flex; flex-direction:column; align-items:start; gap:8px; padding-inline-start:20px; border-inline-start:3px solid var(--color-primary-element); }.request-start__letterhead span { font-size:14px; line-height:1.5; }
+.files-list__records { flex:1 0 320px; min-height:320px; }
+@media(max-width:767px){.request-start{margin:12px;padding:18px 14px}.request-start h2{font-size:24px}.request-start__choices{gap:16px}.request-start__choices > :first-child{flex-basis:100%}.request-start__letterhead{flex-basis:100%}.files-list__records{min-height:320px}}
+.files-list__reload { flex: 0 0 auto !important; }
+.files-list__filters-panel { flex: 0 0 auto; overflow-y: auto;  padding: 0 20px; }
+.files-list__title { flex: 1 1 auto !important; font-size: 22px; font-weight: 650; margin: 0 12px; }
+.files-list__error { padding: 12px 20px; color: var(--color-error); }
+.files-list__header { flex-wrap: wrap; gap: 8px; }
 .files-list__dropzone {
 	display: flex;
-	overflow: hidden;
+	overflow-y: auto;
 	flex-direction: column;
 	flex: 1 1 auto;
 	min-height: 0;

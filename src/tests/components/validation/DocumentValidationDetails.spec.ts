@@ -375,6 +375,26 @@ describe('DocumentValidationDetails', () => {
 		})
 	})
 
+
+	describe('original signed PDF download', () => {
+		it.each([2, 3])('offers an attachment beside the viewer for signed status %s', (status) => {
+			wrapper = createWrapper({ document: { uuid: 'signed-id', status }, isAfterSigned: true })
+			const buttons = wrapper.findAllComponents({ name: 'NcButton' })
+			expect(buttons).toHaveLength(2)
+			expect(buttons[1].attributes('href')).toBe('/apps/libresign/p/pdf/signed-id?download=1')
+			expect(buttons[1].attributes()).toHaveProperty('download')
+			expect(viewer.openDocument).not.toHaveBeenCalled()
+		})
+		it.each([0, 1, -1])('does not offer a signed download for unsigned status %s', (status) => {
+			wrapper = createWrapper({ document: { uuid: 'unsigned-id', status } })
+			expect(wrapper.findAllComponents({ name: 'NcButton' })).toHaveLength(1)
+		})
+		it('does not build a download without an authorised document UUID', () => {
+			wrapper = createWrapper({ document: { status: 3 } })
+			expect(wrapper.findAllComponents({ name: 'NcButton' })).toHaveLength(0)
+		})
+	})
+
 	describe('RULE: view document button opens document', () => {
 		it('shows view document button when UUID present', () => {
 			wrapper = createWrapper({

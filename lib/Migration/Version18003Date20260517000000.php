@@ -433,27 +433,7 @@ class Version18003Date20260517000000 extends SimpleMigrationStep {
 	 * @param array<string, mixed> $rawValue
 	 */
 	private function encodeSignatureTextPolicyValue(array $rawValue): string {
-		$renderMode = strtolower(trim((string)($rawValue['render_mode'] ?? 'default')));
-		if (!in_array($renderMode, ['default', 'graphic', 'text'], true)) {
-			$renderMode = 'default';
-		}
-
-		$backgroundType = strtolower(trim((string)($rawValue['background_type'] ?? 'default')));
-		if (!in_array($backgroundType, ['default', 'custom', 'deleted'], true)) {
-			$backgroundType = 'default';
-		}
-
-		$normalized = [
-			'template' => (string)($rawValue['template'] ?? ''),
-			'template_font_size' => max(0.1, (float)($rawValue['template_font_size'] ?? SignatureTextPolicyValue::DEFAULT_TEMPLATE_FONT_SIZE)),
-			'signature_font_size' => max(0.1, (float)($rawValue['signature_font_size'] ?? SignatureTextPolicyValue::DEFAULT_SIGNATURE_FONT_SIZE)),
-			'signature_width' => max(0.1, (float)($rawValue['signature_width'] ?? SignatureTextPolicyValue::DEFAULT_SIGNATURE_WIDTH)),
-			'signature_height' => max(0.1, (float)($rawValue['signature_height'] ?? SignatureTextPolicyValue::DEFAULT_SIGNATURE_HEIGHT)),
-			'background_type' => $backgroundType,
-			'render_mode' => $renderMode,
-		];
-
-		return json_encode($normalized, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+		return SignatureTextPolicyValue::encode($rawValue);
 	}
 
 	private function migrateGroupsRequestSignType(): void {
@@ -499,6 +479,7 @@ class Version18003Date20260517000000 extends SimpleMigrationStep {
 				'writeQrcodeOnFooter' => $legacyWriteQrCodeOnFooter,
 				'validationSite' => $legacyValidationSite,
 				'customizeFooterTemplate' => !$legacyFooterTemplateIsDefault,
+				'footerTemplate' => $legacyFooterTemplateIsDefault ? '' : ($this->readLegacyString('footer_template') ?? ''),
 			];
 		}
 

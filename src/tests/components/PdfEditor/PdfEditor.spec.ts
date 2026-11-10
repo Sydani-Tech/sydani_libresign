@@ -24,7 +24,7 @@ type VisibleElementRecord = {
 	elementId?: number
 	signRequestId?: number
 	fileId?: number
-	type: 'signature'
+	type: 'signature' | 'text' | 'date' | 'checkbox'
 	coordinates: Record<string, number>
 	[key: string]: unknown
 }
@@ -61,12 +61,14 @@ type PdfElementsMock = {
 }
 
 type PdfEditorVm = {
+	autoFitZoom: boolean
 	pdfElements: PdfElementsMock | null
 	$refs: {
 		pdfElements: PdfElementsMock
 	}
 	$nextTick: () => Promise<void>
 	getSignerLabel: (signer: SignerRecord | null | undefined) => string
+	isEditableSigningField: (object: PdfObjectRecord) => boolean
 	hasMultipleSigners: boolean
 	startAddingSigner: (signer: SignerRecord | null | undefined, size: { width?: number, height?: number }) => boolean
 	addSigner: (signer: SignerRecord, visibleElement: VisibleElementRecord, options?: { documentIndex?: number }) => Promise<void>
@@ -87,6 +89,7 @@ type PdfEditorVm = {
 	}) => string
 	getTotalObjectsCount: () => number
 	handleAddingEnded: (event: Event) => void
+	handlePlacementEnd: (event: MouseEvent | TouchEvent) => void
 	setProps: (props: Record<string, unknown>) => Promise<void>
 }
 
@@ -153,11 +156,92 @@ describe('PdfEditor Component - Business Rules', () => {
 		wrapper = createWrapper()
 	})
 
+	it('keeps field controls inside the editor so an enclosing modal allows input focus', async () => {
+		const editor = mount(PdfEditor, {
+			global: {
+				stubs: {
+					PDFElements: {
+						template: `<div><slot name="actions" :object="{ id: 'field', type: 'text', x: 100, y: 100 }" /></div>`,
+					},
+					NcPopover: true,
+					NcButton: true,
+					NcIconSvgWrapper: true,
+				},
+			},
+		})
+		await editor.vm.$nextTick()
+		expect(editor.findComponent({ name: 'NcPopover' }).props('container')).toBe('#' + editor.attributes('id'))
+		editor.unmount()
+	})
+
+	it('offers zoom and fit without modifying any PDF field coordinates', async () => {
+		const editor = getPdfElements() as PdfElementsMock & { visualScale: number, scale: number, autoFitApplied: boolean, commitZoom: ReturnType<typeof vi.fn> }
+		Object.assign(editor, { visualScale: 0.5, scale: 0.5, autoFitApplied: true, commitZoom: vi.fn() })
+		await wrapper.get('button[aria-label="Zoom in"]').trigger('click')
+		expect(editor.visualScale).toBe(0.625)
+		expect(wrapper.vm.autoFitZoom).toBe(false)
+		expect(editor.commitZoom).toHaveBeenCalledOnce()
+		expect(editor.updateObject).not.toHaveBeenCalled()
+		await wrapper.get('.pdf-editor__zoom button:nth-child(2)').trigger('click')
+		expect(wrapper.vm.autoFitZoom).toBe(true)
+		expect(editor.autoFitApplied).toBe(false)
+		expect(editor.adjustZoomToFit).toHaveBeenCalledOnce()
+	})
+
+
+ describe('RULE: placing fields uses the release point and live page size', () => {
+  function addingEditor() {
+   const canvas=document.createElement('canvas')
+   vi.spyOn(canvas,'getBoundingClientRect').mockReturnValue({left:300,top:-100,width:300,height:400} as DOMRect)
+   return Object.assign(getPdfElements(),{
+    isAddingMode:true, previewElement:{width:180,height:60}, previewPosition:{x:12,y:18}, previewScale:{x:1,y:1},
+    pdfDocuments:[{pages:[Promise.resolve({})],allObjects:[[]]}],
+    getPageCanvasElement:vi.fn(()=>canvas),getPageWidth:vi.fn(()=>600),getPageHeight:vi.fn(()=>800),
+    cachePageBoundsForPage:vi.fn(),finishAdding:vi.fn(),updatePreviewFromClientPoint:vi.fn(),
+   })
+  }
+  it('native palette drops bypass the stale library scale and use the actual PDF rectangle',async()=>{
+   const editor=addingEditor()
+   await wrapper.get('.pdf-editor').trigger('drop',{clientX:450,clientY:100,dataTransfer:{types:['application/x-libresign-field']}})
+   expect(editor.previewPosition).toEqual({x:210,y:370})
+   expect(editor.previewScale).toEqual({x:0.5,y:0.5})
+   expect(editor.finishAdding).toHaveBeenCalledOnce()
+   expect(editor.updatePreviewFromClientPoint).not.toHaveBeenCalled()
+  })
+  it('mouse release recalculates placement even if an old hover preview already exists',async()=>{
+   const editor=addingEditor()
+   await wrapper.get('.pdf-editor').trigger('mouseup',{clientX:450,clientY:100})
+   expect(editor.previewPosition).toEqual({x:210,y:370})
+   expect(editor.finishAdding).toHaveBeenCalledOnce()
+  })
+  it('using the zoom controls does not place a field behind the button',async()=>{
+   const editor=addingEditor()
+   await wrapper.get('button[aria-label="Zoom in"]').trigger('mouseup',{clientX:450,clientY:100})
+   expect(editor.finishAdding).not.toHaveBeenCalled()
+  })
+  it('does not place the old preview when release is outside the PDF',async()=>{
+   const editor=addingEditor()
+   await wrapper.get('.pdf-editor').trigger('mouseup',{clientX:290,clientY:100})
+   expect(editor.finishAdding).not.toHaveBeenCalled()
+  })
+ })
+
 	describe('RULE: worker initialization ordering', () => {
 		it('configures the pdf worker before mounting PDFElements', () => {
 			expect(ensurePdfWorkerMock).toHaveBeenCalledTimes(1)
 			expect(pdfElementsWorkerReadyStates).toEqual([true])
 		})
+	})
+
+	it('edits only the current envelope signer’s child fields', async () => {
+		await wrapper.setProps({ readOnly: true, editableSignRequestIds: [700, 501] })
+		const ownField = { id: 'own', signer: { signRequestId: 501, signed: null }, visibleElement: {
+			elementId: 201, fileId: 10, signRequestId: 501, type: 'text' as const, coordinates: { page: 1 },
+		} }
+		const otherField = { ...ownField, id: 'other', visibleElement: { ...ownField.visibleElement, signRequestId: 502 } }
+
+		expect(wrapper.vm.isEditableSigningField(ownField)).toBe(true)
+		expect(wrapper.vm.isEditableSigningField(otherField)).toBe(false)
 	})
 
 	describe('RULE: getSignerLabel with fallback chain', () => {

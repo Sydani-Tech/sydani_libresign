@@ -155,26 +155,8 @@ class ReminderService {
 	}
 
 	public function sendReminders(): void {
-		$settings = $this->getEffectiveSettings();
-
-		$daysBefore = $settings['days_before'];
-		if ($daysBefore <= 0) {
-			return;
-		}
-
-		$daysBetween = $settings['days_between'];
-		if ($daysBetween <= 0) {
-			return;
-		}
-
-		$max = $settings['max'];
-		if ($max === 0) {
-			return;
-		}
-
-		foreach ($this->fetchJob($daysBefore, $daysBetween, $max) as $job) {
-			$job->notify();
-		}
+		// The organisational schedule is administrator-controlled, including when disabled.
+		\OCP\Server::get(ScheduledReminderService::class)->send();
 	}
 
 	/**

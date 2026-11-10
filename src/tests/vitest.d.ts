@@ -23,9 +23,13 @@ declare module 'vitest' {
 	export interface Mock<T = any, Y extends any[] = any> {
 		(...args: Y): T
 		mockReturnValue(value: T): this
+		mockReturnValueOnce(value: T): this
 		mockResolvedValue(value: Awaited<T>): this
+		mockResolvedValueOnce(value: Awaited<T>): this
 		mockRejectedValue(value: any): this
+		mockRejectedValueOnce(value: any): this
 		mockImplementation(fn: (...args: Y) => T): this
+		mockImplementationOnce(fn: (...args: Y) => T): this
 		mockClear(): void
 		mockReset(): void
 		mockRestore(): void

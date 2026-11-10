@@ -150,6 +150,8 @@ final class JSignPdfHandlerTest extends \OCA\Libresign\Tests\Unit\TestCase {
 				$this->createMock(DocMdpConfigService::class),
 				$hashAlgorithmResolver,
 				$temporarySignatureImageService,
+				$this->createMock(\OCA\Libresign\Service\PdfSigningFieldsService::class),
+				new \OCA\Libresign\Service\TimestampRetryService($this->loggerInterface),
 			);
 		}
 		return $this->getMockBuilder(JSignPdfHandler::class)
@@ -165,6 +167,8 @@ final class JSignPdfHandlerTest extends \OCA\Libresign\Tests\Unit\TestCase {
 				$this->createMock(DocMdpConfigService::class),
 				$hashAlgorithmResolver,
 				$temporarySignatureImageService,
+				$this->createMock(\OCA\Libresign\Service\PdfSigningFieldsService::class),
+				new \OCA\Libresign\Service\TimestampRetryService($this->loggerInterface),
 			])
 			->onlyMethods($methods)
 			->getMock();

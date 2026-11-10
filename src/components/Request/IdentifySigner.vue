@@ -203,6 +203,8 @@ const signerSelected = computed(() => identify.value.length > 0)
 const isNewSigner = computed(() => !props.signerToEdit || Object.keys(props.signerToEdit).length === 0)
 const saveButtonText = computed(() => isNewSigner.value ? saveSignerButtonLabel : updateSignerButtonLabel)
 const identifyMethodLabel = computed(() => {
+	if (identifyMethod.value === 'account') return t('libresign', 'Internal Signers')
+	if (identifyMethod.value === 'email') return t('libresign', 'External Signers')
 	if (!identifyMethod.value) {
 		return ''
 	}

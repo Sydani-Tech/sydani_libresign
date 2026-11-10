@@ -13,6 +13,23 @@ import {
 } from '../../services/signSubmit'
 
 describe('signSubmit service', () => {
+	it('sends signer-entered fields without a signature profile node', () => {
+		const payload = buildSubmitSignaturePayload({
+			basePayload: createBaseSubmitSignaturePayload({ method: 'password', token: 'secret' }),
+			elements: [
+				{ elementId: 1, signRequestId: 10, type: 'text', value: 'Ékomobong' },
+				{ elementId: 2, signRequestId: 10, type: 'date', value: '2026-10-06' },
+				{ elementId: 3, signRequestId: 10, type: 'checkbox', value: true },
+			],
+			canCreateSignature: true,
+			signatures: {},
+		})
+		expect(payload.elements).toEqual([
+			{ documentElementId: 1, value: 'Ékomobong' },
+			{ documentElementId: 2, value: '2026-10-06' },
+			{ documentElementId: 3, value: true },
+		])
+	})
 	it('builds payload elements with profileNodeId only when signature creation is enabled', () => {
 		const basePayload = createBaseSubmitSignaturePayload({ method: 'clickToSign' })
 

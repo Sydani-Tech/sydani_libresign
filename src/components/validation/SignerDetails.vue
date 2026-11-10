@@ -26,8 +26,11 @@
 					<span class="signer-signed-at">{{ dateFromSqlAnsi(signer.signed) }}</span>
 				</template>
 				<template v-else>
-					<strong>{{ t('libresign', 'Status:') }}</strong>
-					<span>{{ t('libresign', 'Signed') }}</span>
+					<strong>{{ t('libresign', 'Signature recorded:') }}</strong>
+					<span v-if="signer.signed">
+						{{ dateFromSqlAnsi(signer.signed) }}
+					</span>
+					<span v-else>{{ t('libresign', 'Signing time not recorded') }}</span>
 				</template>
 			</template>
 			<template #extra-actions>
@@ -211,7 +214,9 @@
 			</NcListItem>
 		</div>
 
-		<!-- Hash Algorithm, Certificate Hash -->
+		<NcListItem v-if="isOpen && getCertificateExpirationLabel(signer)" class="extra" compact><template #name><strong>{{ t('libresign','Certificate expires:') }}</strong>{{ dateFromSqlAnsi(signer.valid_to) }}</template></NcListItem>
+        <p v-if="isOpen && getValidityStatus(signer)==='expired'" class="certificate-expiry-note">{{ t('libresign','This certificate has expired. Expiry does not mean the document was changed. Consult the long-term verification result for historical validity.') }}</p>
+        <!-- Hash Algorithm, Certificate Hash -->
 		<NcListItem v-if="isOpen && signer.signatureTypeSN" class="extra" compact>
 			<template #name>
 				<strong>{{ t('libresign', 'Hash algorithm:') }}</strong>
@@ -292,6 +297,8 @@ type SignerDocMdp = {
 }
 
 type SignerModificationValidation = {
+	valid?: boolean
+	source?: string
 	status?: number
 	message?: string
 }
@@ -521,7 +528,15 @@ function getSignatureValidationMessage(signer: SignerModel) {
 	return signer.signature_validation?.message || t('libresign', 'Document integrity check failed')
 }
 
+function hasVerifiedValidationEvidence(signer: SignerModel) {
+	return signer.signature_validation?.id === 1
+		&& signer.modification_validation?.valid === true
+		&& signer.modification_validation.status === MODIFICATION_ALLOWED
+		&& ['dss-pdf-revisions', 'dss-managed-form-revisions'].includes(signer.modification_validation.source ?? '')
+}
+
 function hasDocumentModificationWarning(signer: SignerModel) {
+	if (hasVerifiedValidationEvidence(signer)) return false
 	return !!signer.document_modification_state
 		&& signer.document_modification_state !== 'unchanged'
 }
@@ -625,7 +640,7 @@ function getModificationStatusIcon(signer: SignerModel) {
 	if (!signer.modification_validation) { return undefined }
 
 	const status = signer.modification_validation.status
-	if (status === MODIFICATION_UNMODIFIED) {
+	if (status === MODIFICATION_UNMODIFIED || hasVerifiedValidationEvidence(signer)) {
 		return mdiCheck
 	}
 	if (status === MODIFICATION_ALLOWED) {
@@ -638,7 +653,7 @@ function getModificationStatusClass(signer: SignerModel) {
 	if (!signer.modification_validation) { return '' }
 
 	const status = signer.modification_validation.status
-	if (status === MODIFICATION_UNMODIFIED) {
+	if (status === MODIFICATION_UNMODIFIED || hasVerifiedValidationEvidence(signer)) {
 		return 'validation-icon--success'
 	}
 	if (status === MODIFICATION_ALLOWED) {

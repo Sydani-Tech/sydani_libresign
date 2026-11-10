@@ -53,6 +53,7 @@ class FooterHandler {
 		private ITempManager $tempManager,
 		private PolicyService $policyService,
 		private TemplateVariables $templateVars,
+		private \OCA\Libresign\Service\ShortValidationUrlService $shortValidationUrls,
 	) {
 	}
 
@@ -187,9 +188,7 @@ class FooterHandler {
 				);
 			} else {
 				$this->templateVars->setValidationSite(
-					$this->urlGenerator->linkToRouteAbsolute('libresign.page.validationFileWithShortUrl', [
-						'uuid' => $this->templateVars->getUuid(),
-					])
+					$this->shortValidationUrls->forUuid($this->templateVars->getUuid())
 				);
 			}
 		}

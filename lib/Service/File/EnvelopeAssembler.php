@@ -31,6 +31,7 @@ class EnvelopeAssembler {
 		private \OCA\Libresign\Handler\SignEngine\Pkcs12Handler $pkcs12Handler,
 		private LoggerInterface $logger,
 		private FileElementService $fileElementService,
+		private \OCA\Libresign\Service\DocumentArchiveService $documentArchive,
 	) {
 	}
 
@@ -41,7 +42,7 @@ class EnvelopeAssembler {
 		$fileData->name = $childFile->getName();
 		$fileData->status = $childFile->getStatus();
 		$fileData->statusText = $this->fileMapper->getTextOfStatus($childFile->getStatus());
-		$fileData->nodeId = $childFile->getNodeId();
+		$fileData->nodeId = $childFile->getDisplayNodeId();
 		$fileData->file = $this->urlGenerator->linkToRoute('libresign.page.getPdf', ['uuid' => $childFile->getUuid()]);
 		$childMetadata = $childFile->getMetadata() ?? [];
 		$fileData->totalPages = (int)($childMetadata['p'] ?? 0);
@@ -51,7 +52,7 @@ class EnvelopeAssembler {
 		$fileData->metadata = $childMetadata;
 
 		$nodeId = $childFile->getSignedNodeId() ?: $childFile->getNodeId();
-		$fileNode = $this->root->getUserFolder($childFile->getUserId())->getFirstNodeById($nodeId);
+		$fileNode = $this->documentArchive->resolve($childFile);
 		if ($fileNode instanceof \OCP\Files\File) {
 			if (method_exists($fileNode, 'getSize')) {
 				$fileData->size = $fileNode->getSize();
@@ -143,7 +144,7 @@ class EnvelopeAssembler {
 
 		if ($options->isValidateFile() && $childFile->getSignedNodeId()) {
 			try {
-				$fileNode = $this->root->getUserFolder($childFile->getUserId())->getFirstNodeById($childFile->getSignedNodeId());
+				$fileNode = $this->documentArchive->resolve($childFile);
 				if ($fileNode instanceof \OCP\Files\File) {
 					if ($this->certificateChainService !== null) {
 						$certData = $this->certificateChainService->getCertificateChain($fileNode, $childFile, $options);

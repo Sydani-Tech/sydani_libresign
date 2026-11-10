@@ -318,8 +318,7 @@ class ValidateHelper {
 			}
 			return;
 		}
-		if (!in_array($element['type'], ['signature', 'initial', 'date', 'datetime', 'text'])) {
-			// TRANSLATORS Validation error when a visible signature element uses an unsupported type.
+		if (!in_array($element['type'], ['signature', 'initial', 'date', 'datetime', 'text', 'checkbox'])) {
 			throw new LibresignException($this->l10n->t('Invalid element type'));
 		}
 	}
@@ -332,6 +331,12 @@ class ValidateHelper {
 			if (!array_key_exists('documentElementId', $elements)) {
 				// TRANSLATORS Validation error when a required field is missing from the visible element payload. %s is the field name documentElementId.
 				throw new LibresignException($this->l10n->t('Field %s not found', ['documentElementId']));
+			}
+			$this->validateSignerIsOwnerOfPdfVisibleElement($elements['documentElementId'], $signRequest, $childSignRequestIds);
+			$field = $this->fileElementMapper->getById($elements['documentElementId']);
+			if (\OCA\Libresign\Service\SigningFieldService::isField($field->getType())) {
+				\OCA\Libresign\Service\SigningFieldService::submittedValue($field, $list);
+				continue;
 			}
 			if ($canCreateSignature && !array_key_exists('profileNodeId', $elements)) {
 				// TRANSLATORS Validation error when a required field is missing from the visible element payload. %s is the field name profileNodeId.
@@ -391,6 +396,10 @@ class ValidateHelper {
 			}
 		}
 		$total = array_filter($fileElements, function (FileElement $fileElement) use ($list, $user): bool {
+			if (\OCA\Libresign\Service\SigningFieldService::isField($fileElement->getType())) {
+				\OCA\Libresign\Service\SigningFieldService::submittedValue($fileElement, $list);
+				return true;
+			}
 			$found = array_filter($list, fn ($item): bool => $item['documentElementId'] === $fileElement->getId());
 			if (!$found) {
 				if (!$this->signerElementsService->canCreateSignature()) {
@@ -632,8 +641,7 @@ class ValidateHelper {
 
 	public function iRequestedSignThisFile(IUser $user, int $fileId): void {
 		$libresignFile = $this->fileMapper->getById($fileId);
-		if ($libresignFile->getUserId() !== $user->getUID()) {
-			// TRANSLATORS Permission error when the current user cannot perform the requested LibreSign action.
+		if ($libresignFile->getExternallySigned() || $libresignFile->getUserId() !== $user->getUID()) {
 			throw new LibresignException($this->l10n->t('You do not have permission for this action.'));
 		}
 	}

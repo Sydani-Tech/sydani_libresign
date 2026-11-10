@@ -3,13 +3,16 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="pdf-editor">
+	<div ref="editorRoot" :id="popoverContainerId" class="pdf-editor"
+		@mousemove.capture="handlePlacementMove" @touchmove.capture="handlePlacementMove"
+		@mouseup.capture="handlePlacementEnd" @touchend.capture="handlePlacementEnd"
+		@mouseleave="hidePlacementPreview" @dragover.prevent="handlePlacementMove" @drop.prevent="handlePaletteDrop">
 		<PDFElements ref="pdfElements"
 			:init-files="files"
 			:init-file-names="fileNames"
 			:page-count-format="t('libresign', '{currentPage} of {totalPages}')"
 			:page-aria-label="getPageAriaLabel"
-			:auto-fit-zoom="true"
+			:auto-fit-zoom="autoFitZoom"
 			:read-only="readOnly"
 			:emit-object-click="true"
 			:hide-selection-ui="readOnly"
@@ -22,7 +25,25 @@
 			@pdf-elements:delete-object="handleDeleteObject"
 			@pdf-elements:adding-ended="handleAddingEnded">
 			<template #actions="slotProps">
+				<div class="pdf-editor__actions-anchor" :style="{ transform: 'translateY(' + fieldActionsOffset(slotProps.object) + 'px)' }">
+				<!-- Keep controls inside the enclosing modal’s focus trap. -->
+				<NcPopover :shown="true" :triggers="[]" no-focus-trap no-close-on-click-outside
+					:container="'#' + popoverContainerId" placement="top" :boundary="editorRoot" popover-base-class="pdf-editor-field-popover">
+					<template #trigger><span class="pdf-editor__actions-trigger" aria-hidden="true" /></template>
+					<div class="pdf-editor__actions" :style="{ maxWidth: fieldActionsMaxWidth }" @pointerdown.stop @mousedown.stop @touchstart.stop>
 				<slot name="actions" v-bind="slotProps">
+					<template v-if="isSigningField(slotProps.object?.type)">
+						<input :value="slotProps.object.metadata?.label ?? slotProps.object.visibleElement?.metadata?.label ?? ''"
+							class="pdf-editor__field-label"
+							:aria-label="t('libresign', 'Field label')" :placeholder="t('libresign', 'Field label')" maxlength="100"
+							@change="updateFieldMetadata(slotProps.object, { label: ($event.target as HTMLInputElement).value })" @pointerdown.stop @mousedown.stop @touchstart.stop>
+						<label class="pdf-editor__required"><input type="checkbox" :checked="(slotProps.object.metadata ?? slotProps.object.visibleElement?.metadata)?.required !== false"
+							@change="updateFieldMetadata(slotProps.object, { required: ($event.target as HTMLInputElement).checked })" @pointerdown.stop @mousedown.stop @touchstart.stop> {{ t('libresign', 'Required') }}</label>
+						<label v-if="slotProps.object?.type === 'date'" class="pdf-editor__required"><input type="checkbox"
+							:checked="(slotProps.object.metadata ?? slotProps.object.visibleElement?.metadata)?.useSigningDate === true"
+							@change="updateFieldMetadata(slotProps.object, { useSigningDate: ($event.target as HTMLInputElement).checked })"
+							@pointerdown.stop @mousedown.stop @touchstart.stop> {{ t('libresign', 'Use signing date') }}</label>
+					</template>
 					<SignerMenu
 						v-if="hasMultipleSigners && slotProps.object?.signer"
 						:signers="signers"
@@ -54,24 +75,42 @@
 						</template>
 					</NcButton>
 				</slot>
+					</div>
+				</NcPopover>
+				</div>
 			</template>
 			<template #element-signature="{ object }">
 				<SignatureBox
 					:label="getSignerLabel(object.signer)"
 					:signer="object.signer" />
 			</template>
+			<template #element-initial="{ object }">
+				<SignatureBox :label="getSignerLabel(object.signer)" :signer="object.signer" />
+			</template>
+			<template v-for="fieldType in ['text', 'date', 'checkbox']" #[`element-${fieldType}`]="{ object }">
+				<SigningFieldBox :key="fieldType" :type="fieldType" :field="object.visibleElement" :metadata="object.metadata"
+					:signer-label="getSignerLabel(object.signer)"
+					:editable="readOnly && isEditableSigningField(object)" />
+			</template>
 		</PDFElements>
+		<div class="pdf-editor__zoom" role="group" :aria-label="t('libresign', 'Document zoom')">
+			<button type="button" :aria-label="t('libresign', 'Zoom out')" @click="changeZoom(1 / 1.25)">−</button>
+			<button type="button" @click="fitDocument">{{ t('libresign', 'Fit') }}</button>
+			<button type="button" :aria-label="t('libresign', 'Zoom in')" @click="changeZoom(1.25)">+</button>
+		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
 import { t } from '@nextcloud/l10n'
 
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, useId, onMounted, onBeforeUnmount } from 'vue'
 import PDFElements from '@libresign/pdf-elements'
 import '@libresign/pdf-elements/dist/index.css'
 
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcPopover from '@nextcloud/vue/components/NcPopover'
+import { pointerToPdfPlacement } from './pdfEditorGeometry'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 
 import {
@@ -81,6 +120,9 @@ import {
 
 import SignerMenu from './SignerMenu.vue'
 import SignatureBox from './SignatureBox.vue'
+import SigningFieldBox from './SigningFieldBox.vue'
+import { isSigningField } from '../../store/signingFields'
+import { idsMatch } from '../../services/visibleElementsService'
 import {
 	buildPdfEditorSignerPayload,
 	calculatePdfPlacement,
@@ -110,6 +152,7 @@ type PdfEditorObject = {
 	height: number
 	signer?: SignerSummaryRecord | SignerDetailRecord | null
 	visibleElement?: VisibleElementRecord | null
+	metadata?: { label?: string, required?: boolean, useSigningDate?: boolean, signingDateTimezone?: string }
 	documentIndex?: number
 }
 type PdfDocument = {
@@ -125,11 +168,25 @@ type PdfElementsInstance = {
 	cancelAdding: () => void
 	adjustZoomToFit?: () => void
 	getPageHeight?: (docIndex: number, pageIndex: number) => number
+	getPageWidth?: (docIndex: number, pageIndex: number) => number
+	getPageCanvasElement?: (docIndex: number, pageIndex: number) => HTMLElement | null
+	getDisplayedPageScale?: (docIndex: number, pageIndex: number) => number
+	cachePageBoundsForPage?: (docIndex: number, pageIndex: number) => void
+	finishAdding?: () => void
+	previewElement?: {width: number, height: number} | null
+	previewPosition?: {x: number, y: number}
+	previewScale?: {x: number, y: number}
+	previewPageDocIndex?: number
+	previewPageIndex?: number
+	previewVisible?: boolean
 	isAddingMode?: boolean
 	pdfDocuments?: PdfDocument[]
 	selectedDocIndex?: number
 	autoFitZoom?: boolean
 	scale?: number
+	visualScale?: number
+	autoFitApplied?: boolean
+	clampZoomScale?: (scale: number) => number
 	commitZoom?: () => void
 }
 
@@ -141,6 +198,7 @@ const props = withDefaults(defineProps<{
 	files?: PdfInput[]
 	fileNames?: string[]
 	readOnly?: boolean
+	editableSignRequestIds?: number[]
 	signers?: Array<SignerSummaryRecord | SignerDetailRecord>
 }>(), {
 	files: () => [],
@@ -159,8 +217,29 @@ const emit = defineEmits<{
 ensurePdfWorker()
 
 const pdfElements = ref<PdfElementsInstance | null>(null)
+const autoFitZoom = ref(true)
+const popoverContainerId = 'pdf-editor-' + useId()
+const editorRoot = ref<HTMLElement | null>(null)
+const editorWidth = ref(0)
+let editorResizeObserver: ResizeObserver | undefined
+const fieldActionsMaxWidth = computed(() => Math.max(0, (editorWidth.value || window.innerWidth) - 24) + 'px')
+onMounted(() => {
+	const measure = () => { editorWidth.value = editorRoot.value?.getBoundingClientRect().width || 0 }
+	measure()
+	if (typeof ResizeObserver !== 'undefined' && editorRoot.value) {
+		editorResizeObserver = new ResizeObserver(measure)
+		editorResizeObserver.observe(editorRoot.value)
+	}
+})
+onBeforeUnmount(() => editorResizeObserver?.disconnect())
+function fieldActionsOffset(object?: PdfEditorObject) {
+	if (!object) return 0
+	const location = findObjectLocation(pdfElements.value, object.id)
+	const scale = location ? pdfElements.value?.getDisplayedPageScale?.(location.docIndex, location.pageIndex) || 1 : 1
+	return (object.y < 60 ? -8 : 60) * scale
+}
 
-const ignoreClickOutsideSelectors = computed(() => ['.action-item__popper', '.action-item'])
+const ignoreClickOutsideSelectors = computed(() => ['.action-item__popper', '.action-item', '.pdf-elements-actions-toolbar', '.pdf-editor-field-popover'])
 
 const toolbarStyleVars = computed(() => ({
 	'--pdf-elements-toolbar-gap': '10px',
@@ -182,6 +261,14 @@ const toolbarStyleVars = computed(() => ({
 }))
 
 const hasMultipleSigners = computed(() => (props.signers || []).length > 1)
+
+function isEditableSigningField(object: PdfEditorObject): boolean {
+	if (object.signer?.signed) return false
+	if (props.editableSignRequestIds !== undefined) {
+		return props.editableSignRequestIds.some(id => idsMatch(id, object.visibleElement?.signRequestId))
+	}
+	return Boolean(object.signer && 'me' in object.signer && object.signer.me === true)
+}
 
 function getPageAriaLabel({ docIndex, docName, totalDocs, pageNumber, totalPages, isAddingMode }: {
 	docIndex: number
@@ -285,7 +372,7 @@ function handleAddingEnded(event: Event) {
 		reason: (event as CustomEvent)?.detail?.reason,
 	})
 }
-function startAddingSigner(signer: SignerSummaryRecord | SignerDetailRecord | null | undefined, size: { width?: number, height?: number }) {
+function startAddingSigner(signer: SignerSummaryRecord | SignerDetailRecord | null | undefined, size: { width?: number, height?: number, type?: string }) {
 	if (!pdfElements.value || !size?.width || !size?.height) {
 		return false
 	}
@@ -296,19 +383,101 @@ function startAddingSigner(signer: SignerSummaryRecord | SignerDetailRecord | nu
 	}
 
 	pdfElements.value.startAddingElement({
-		type: 'signature',
+		type: size.type || 'signature',
 		x: 0,
 		y: 0,
 		width: size.width,
 		height: size.height,
 		signer: signerPayload,
+		metadata: { label: '', required: true },
 	})
 
 	return true
 }
 
+function updateFieldMetadata(object: PdfEditorObject, patch: { label?: string, required?: boolean, useSigningDate?: boolean, signingDateTimezone?: string }) {
+	const location = findObjectLocation(pdfElements.value, object.id)
+	if (!location) return
+	const metadata = { ...(object.metadata ?? object.visibleElement?.metadata), ...patch }
+	if (metadata.useSigningDate && !metadata.signingDateTimezone) metadata.signingDateTimezone = 'Africa/Lagos'
+	pdfElements.value?.updateObject(location.docIndex, object.id, { metadata })
+}
+
+// Resolve placement against live displayed page bounds, not cached render scales.
+function updatePlacementFromPointer(clientX: number, clientY: number): boolean {
+ const editor = pdfElements.value
+ if (!editor?.isAddingMode || !editor.previewElement) return false
+ for (const [docIndex, doc] of (editor.pdfDocuments || []).entries()) {
+  for (let pageIndex = 0; pageIndex < (doc.pages?.length || 0); pageIndex++) {
+   const canvas = editor.getPageCanvasElement?.(docIndex, pageIndex)
+   if (!canvas) continue
+   const placement = pointerToPdfPlacement({ rect: canvas.getBoundingClientRect(),
+    page: {width: editor.getPageWidth?.(docIndex, pageIndex) || 0, height: editor.getPageHeight?.(docIndex, pageIndex) || 0},
+    field: editor.previewElement, clientX, clientY })
+   if (!placement) continue
+   editor.cachePageBoundsForPage?.(docIndex, pageIndex)
+   editor.previewPageDocIndex = docIndex
+   editor.previewPageIndex = pageIndex
+   editor.previewPosition = {x: placement.x, y: placement.y}
+   editor.previewScale = {x: placement.scaleX, y: placement.scaleY}
+   editor.previewVisible = true
+   return true
+  }
+ }
+ editor.previewVisible = false
+ return false
+}
+function placementPoint(event: MouseEvent | TouchEvent) {
+ if ('changedTouches' in event) {
+  if (event.touches.length > 1) return null
+  const touch = event.touches[0] || event.changedTouches[0]
+  return touch ? {x: touch.clientX, y: touch.clientY} : null
+ }
+ return {x: event.clientX, y: event.clientY}
+}
+function handlePlacementMove(event: MouseEvent | TouchEvent) {
+ if (!pdfElements.value?.isAddingMode) return
+ const point = placementPoint(event)
+ if (!point) return
+ event.stopPropagation()
+ updatePlacementFromPointer(point.x, point.y)
+}
+function handlePlacementEnd(event: MouseEvent | TouchEvent) {
+ if (!pdfElements.value?.isAddingMode) return
+ if ((event.target as Element)?.closest?.('.pdf-editor__zoom')) { event.stopPropagation(); hidePlacementPreview(); return }
+ const point = placementPoint(event)
+ if (!point) return
+ event.stopPropagation()
+ if (updatePlacementFromPointer(point.x, point.y)) pdfElements.value?.finishAdding?.()
+}
+function hidePlacementPreview() {
+ if (pdfElements.value?.isAddingMode) pdfElements.value.previewVisible = false
+}
+function handlePaletteDrop(event: DragEvent) {
+ if (props.readOnly || !event.dataTransfer?.types.includes('application/x-libresign-field')) return
+ if (updatePlacementFromPointer(event.clientX, event.clientY)) pdfElements.value?.finishAdding?.()
+}
+
 function cancelAdding() {
 	pdfElements.value?.cancelAdding()
+}
+
+function changeZoom(factor: number) {
+	const editor = pdfElements.value
+	if (!editor?.commitZoom) return
+	const scale = (editor.visualScale || editor.scale || 1) * factor
+	autoFitZoom.value = false
+	editor.visualScale = editor.clampZoomScale?.(scale) ?? Math.min(3, Math.max(0.2, scale))
+	editor.commitZoom()
+}
+
+async function fitDocument() {
+	const editor = pdfElements.value
+	if (!editor) return
+	autoFitZoom.value = true
+	await nextTick()
+	editor.autoFitApplied = false
+	editor.adjustZoomToFit?.()
 }
 
 async function addSigner(signer: SignerSummaryRecord | SignerDetailRecord, visibleElement: VisibleElementRecord, options: { documentIndex?: number } = {}) {
@@ -369,6 +538,7 @@ defineExpose({
 	mdiContentCopy,
 	mdiDelete,
 	pdfElements,
+	autoFitZoom,
 	ignoreClickOutsideSelectors,
 	toolbarStyleVars,
 	hasMultipleSigners,
@@ -383,19 +553,53 @@ defineExpose({
 	findObjectLocation,
 	startAddingSigner,
 	cancelAdding,
+	changeZoom,
+	fitDocument,
 	addSigner,
 	waitForPageRender,
 	getTotalObjectsCount,
 	handleAddingEnded,
+	handlePlacementMove,
+	handlePlacementEnd,
+	handlePaletteDrop,
 })
 </script>
 
 <style lang="scss">
 .pdf-editor {
+	position: relative;
 	width: 100%;
 	height: 100%;
 	overflow: hidden;
 	overscroll-behavior: contain;
+	.draggable-wrapper:has(.signing-field--editable) > .draggable-element {
+		pointer-events: auto !important;
+	}
+	&__zoom { display: none; }
+	.pdf-elements-actions-toolbar { padding: 0; border: 0; background: transparent; box-shadow: none; }
+	&__actions-trigger { display: block; width: 1px; height: 1px; }
+	&__required { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+	@media (max-width: 767px) {
+		&__zoom {
+			display: flex; position: absolute; top: 8px; right: 8px; z-index: 8;
+			border: 1px solid var(--color-border); border-radius: 8px;
+			background: var(--color-main-background); box-shadow: 0 2px 8px #0002;
+			button { min-width: 44px; min-height: 44px; margin: 0; border: 0; background: transparent; color: var(--color-main-text); }
+		}
+		.resize-handle { width: 24px; height: 24px; touch-action: none; }
+		.handle-top-left { top: -13px; left: -13px; }
+		.handle-top-right { top: -13px; right: -13px; }
+		.handle-bottom-left { bottom: -13px; left: -13px; }
+		.handle-bottom-right { bottom: -13px; right: -13px; }
+	}
 }
 
+.pdf-editor-field-popover .pdf-editor__actions {
+	display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 380px;
+	padding: 12px; box-sizing: border-box; max-height: min(280px, calc(100dvh - 32px)); overflow-y: auto;
+	color: var(--color-main-text); background: var(--color-main-background);
+	.pdf-editor__field-label { flex: 1 1 150px; min-width: 0; width: 150px; margin: 0; }
+	.pdf-editor__required { display: flex; align-items: center; gap: 6px; white-space: normal; min-height: 36px; }
+	.action-btn { flex: 0 0 auto; }
+}
 </style>

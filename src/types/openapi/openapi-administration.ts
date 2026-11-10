@@ -199,6 +199,51 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/admin/all-signed-in-request-sign/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Allow every authenticated Nextcloud user to create signing requests, regardless of group. Anonymous users remain excluded by the request-sign middleware.
+         * @description This endpoint requires admin access
+         */
+        post: operations["admin-set-all-signed-in-request-sign-config"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaign-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the groups authorised to create campaigns.
+         * @description This endpoint requires admin access
+         */
+        get: operations["campaign-settings"];
+        put?: never;
+        /**
+         * Set the groups authorised to create campaigns.
+         * @description This endpoint requires admin access
+         *     This endpoint requires password confirmation
+         */
+        post: operations["campaign-save-settings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ocs/v2.php/apps/libresign/api/{apiVersion}/crl/list": {
         parameters: {
             query?: never;
@@ -260,6 +305,48 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterheads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a shared letterhead template from a PDF.
+         * @description This endpoint requires admin access
+         *     This endpoint requires password confirmation
+         */
+        post: operations["letterhead-create-template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterheads/{id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate or deactivate a shared letterhead.
+         * @description This endpoint requires admin access
+         *     This endpoint requires password confirmation
+         */
+        post: operations["letterhead-template-state"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ocs/v2.php/apps/libresign/api/{apiVersion}/policies/system/{policyKey}": {
         parameters: {
             query?: never;
@@ -278,6 +365,31 @@ export type paths = {
          * @description This endpoint requires admin access
          */
         post: operations["policy-set-system"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/admin/reminder-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the administrator-controlled reminder schedule.
+         * @description This endpoint requires admin access
+         */
+        get: operations["reminder_schedule-settings"];
+        put?: never;
+        /**
+         * Save the administrator-controlled reminder schedule.
+         * @description This endpoint requires admin access
+         *     This endpoint requires password confirmation
+         */
+        post: operations["reminder_schedule-save"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1063,6 +1175,120 @@ export interface operations {
             };
         };
     };
+    "admin-set-all-signed-in-request-sign-config": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Whether every authenticated user can request signatures */
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Settings saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                message: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-settings": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-save-settings": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Authorised Nextcloud group identifiers */
+                    groups: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
     "crl_api-list": {
         parameters: {
             query?: {
@@ -1263,6 +1489,92 @@ export interface operations {
             };
         };
     };
+    "letterhead-create-template": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Document name search */
+                    name: string;
+                    /** @description Base64 encoded PDF */
+                    pdf: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-template-state": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Whether the template is available for new documents */
+                    active: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
     "policy-get-system": {
         parameters: {
             query?: never;
@@ -1349,6 +1661,83 @@ export interface operations {
                         ocs: {
                             meta: components["schemas"]["OCSMeta"];
                             data: components["schemas"]["ErrorResponse"];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "reminder_schedule-settings": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "reminder_schedule-save": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Administrator reminder frequency, limits, times and stop date */
+                    policy: {
+                        [key: string]: Record<string, never>;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
                         };
                     };
                 };

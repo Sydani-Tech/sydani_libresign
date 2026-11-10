@@ -44,6 +44,7 @@ class SignerRemovalService {
 		private IL10N $l10n,
 		private IDBConnection $db,
 		private LoggerInterface $logger,
+		private DocumentArchiveService $documentArchive,
 	) {
 	}
 
@@ -150,6 +151,11 @@ class SignerRemovalService {
 	 * @param list<SignRequestEntity> $siblings
 	 */
 	private function assertCanRemove(FileEntity $file, SignRequestEntity $signRequest, array $siblings): void {
+		if (!empty(($file->getMetadata() ?? [])['letterhead'])) {
+			throw new \OCP\Files\NotPermittedException('The approved signer list is fixed. Create a new letterhead document to change recipients.');
+		}
+		CampaignPolicy::assertEditable($file);
+		$this->documentArchive->assertCanDelete($file);
 		if (!(FileStatus::tryFrom($file->getStatus())?->allowsSignerRemoval() ?? false)
 			|| $signRequest->hasCompletedSigning()
 		) {

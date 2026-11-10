@@ -94,6 +94,7 @@ describe('ModalVerificationCode (email mode)', () => {
 		NcTextField: { template: '<input />' },
 		NcButton: { template: '<button><slot /></button>' },
 		NcLoadingIcon: { template: '<div />' },
+		NcNoteCard: { props: ['heading'], template: '<aside><h3>{{ heading }}</h3><slot /></aside>' },
 		NcIconSvgWrapper: { template: '<div />' },
 	}
 
@@ -122,6 +123,36 @@ describe('ModalVerificationCode (email mode)', () => {
 			hashOfEmail: '5d41402abc4b2a76b9719d911017c592',
 			blurredEmail: 'u***@email.com',
 		}
+	})
+
+	 it('shows a temporary timestamp failure inside confirmation and preserves verification for retry', async () => {
+		wrapper = mountEmail()
+		wrapper.vm.identityVerified = true
+		wrapper.vm.token = '123456'
+		wrapper.vm.signDocument()
+		useSignStore().setSigningErrors([{
+			code: 503,
+			title: 'Timestamp service temporarily unavailable',
+			message: 'No signed document was saved. Please wait a moment and try again.',
+		}])
+		await wrapper.vm.$nextTick()
+		expect(wrapper.get('.temporary-signing-error').text()).toContain('Timestamp service temporarily unavailable')
+		expect(wrapper.get('.temporary-signing-error').text()).toContain('Please wait a moment and try again')
+		expect(wrapper.vm.loading).toBe(false)
+		expect(wrapper.vm.identityVerified).toBe(true)
+		expect(wrapper.vm.token).toBe('123456')
+		useSignStore().setSigningErrors([])
+		await wrapper.vm.$nextTick()
+		expect(wrapper.find('.temporary-signing-error').exists()).toBe(false)
+		wrapper.vm.signDocument()
+		expect(wrapper.emitted('change')).toHaveLength(2)
+	})
+
+	it('does not label a certificate failure as a temporary timestamp failure', async () => {
+		wrapper = mountEmail()
+		useSignStore().setSigningErrors([{ code: 422, message: 'Certificate revoked' }])
+		await wrapper.vm.$nextTick()
+		expect(wrapper.find('.temporary-signing-error').exists()).toBe(false)
 	})
 
 	it('displays progress indicator on step 1 in email mode', async () => {

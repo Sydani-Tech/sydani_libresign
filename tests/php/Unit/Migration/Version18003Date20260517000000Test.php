@@ -51,6 +51,7 @@ final class Version18003Date20260517000000Test extends TestCase {
 					'write_qrcode_on_footer' => '0',
 					'validation_site' => 'https://validator.example/base/',
 					'footer_template_is_default' => '0',
+					'footer_template' => '<p>Validate at {{ validationSite }}</p>',
 					'docmdp_level' => '',
 					'groups_request_sign' => '',
 					'policy.signature_flow.system' => '',
@@ -89,6 +90,7 @@ final class Version18003Date20260517000000Test extends TestCase {
 							'writeQrcodeOnFooter' => false,
 							'validationSite' => 'https://validator.example/base/',
 							'customizeFooterTemplate' => true,
+							'footerTemplate' => '<p>Validate at {{ validationSite }}</p>',
 						]),
 						$value,
 					);
@@ -1013,8 +1015,8 @@ final class Version18003Date20260517000000Test extends TestCase {
 		self::assertSame(101.0, (float)$decoded['signature_height']);
 		self::assertSame(20.0, (float)$decoded['signature_font_size']);
 
-		// Non-canonical render_mode must be normalised to 'default'
-		self::assertSame('default', $decoded['render_mode']);
+		// Preserve the recognised legacy name-and-description mode using its canonical alias.
+		self::assertSame('text', $decoded['render_mode']);
 	}
 
 	public function testMigratesLegacyWorkerSettingsToCanonicalWorkerConfigKey(): void {

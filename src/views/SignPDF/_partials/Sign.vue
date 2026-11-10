@@ -4,6 +4,31 @@
 -->
 <template>
 	<div class="document-sign">
+		<div v-if="signingFields.length" ref="signingFieldsSummary" class="signing-fields-summary">
+			<h3>{{ t('libresign', 'Complete your fields') }}</h3>
+			<p>{{ t('libresign', 'Fill the highlighted fields on the document before signing.') }}</p>
+			<NcNoteCard v-if="signingFieldIssues.length" type="warning" class="signing-fields-summary__notice" role="status" aria-live="polite" aria-atomic="true">
+				<strong>{{ t('libresign', 'Complete these fields before signing:') }}</strong>
+				<ul>
+					<li v-for="{ field, issue } in signingFieldIssues" :key="field.elementId">
+						<button type="button" class="signing-fields-summary__issue" @click="focusSigningField(field.elementId)">
+							<strong>{{ field.metadata?.label || field.type }} — {{ issue === 'required' ? t('libresign', 'Required') : t('libresign', 'Enter a valid value') }}</strong>
+						</button>
+					</li>
+				</ul>
+			</NcNoteCard>
+			<label v-for="field in signingFields" :key="field.elementId" class="signing-fields-summary__field"
+				:class="{ 'signing-fields-summary__field--checkbox': field.type === 'checkbox' }">
+				<span>{{ field.metadata?.label || field.type }}{{ field.metadata?.required !== false ? ' *' : '' }}</span>
+				<span v-if="usesSigningDate(field)" class="signing-fields-summary__automatic" role="note">{{ t('libresign', 'Will use the signing date ({timezone})', { timezone: !field.metadata?.signingDateTimezone || field.metadata.signingDateTimezone === 'Africa/Lagos' ? 'WAT · UTC+1' : field.metadata.signingDateTimezone }) }}</span>
+				<input v-else-if="field.type === 'checkbox'" v-model="signingFieldsStore.values[field.elementId]" type="checkbox"
+					:data-signing-input="field.elementId" :required="field.metadata?.required !== false"
+					:aria-invalid="getSigningFieldIssue(field, signingFieldsStore.values[field.elementId]) !== null">
+				<input v-else v-model="signingFieldsStore.values[field.elementId]" :type="field.type === 'date' ? 'date' : 'text'" maxlength="500"
+					:data-signing-input="field.elementId" :required="field.metadata?.required !== false"
+					:aria-invalid="getSigningFieldIssue(field, signingFieldsStore.values[field.elementId]) !== null">
+			</label>
+		</div>
 		<div class="sign-elements">
 			<Signatures v-if="hasSignatures" />
 		</div>
@@ -39,15 +64,17 @@
 			</NcNoteCard>
 			<div v-if="needCreateSignature" class="no-signature-warning">
 				<p>
-					<!-- TRANSLATORS Warning shown when the signer has not created any reusable signature yet. -->
-					{{ t('libresign', 'You do not have any signature defined.') }}
+					{{ missingSignatureType === 'initial'
+						? t('libresign', 'You do not have any initials defined.')
+						: t('libresign', 'You do not have any signature defined.') }}
 				</p>
 				<NcButton :wide="true"
 					:disabled="loading"
 					variant="primary"
 					@click="openModal('createSignature')">
-					<!-- TRANSLATORS Button label that opens the signature creation flow. -->
-					{{ t('libresign', 'Define your signature.') }}
+					{{ missingSignatureType === 'initial'
+						? t('libresign', 'Define your initials.')
+						: t('libresign', 'Define your signature.') }}
 				</NcButton>
 			</div>
 			<div v-else-if="signMethodsStore.needCertificate()">
@@ -193,7 +220,7 @@
 			:text-editor="true"
 			:file-editor="true"
 			:sign-request-uuid="signRequestUuid"
-			type="signature"
+			:type="missingSignatureType || 'signature'"
 			@save="saveSignature"
 			@close="signMethodsStore.closeModal('createSignature')" />
 		<CreatePassword @password:created="onSignatureFileCreated" />
@@ -311,6 +338,7 @@ import type {
 	SignatureMethodConfig,
 	SubmitSignaturePayload,
 } from '../../../services/signSubmit'
+import { getSigningFieldIssue, isSigningField, usesSigningDate, useSigningFieldsStore } from '../../../store/signingFields'
 
 type OpenApiAccountMe = operations['account-me']['responses'][200]['content']['application/json']['ocs']['data']
 type LibreSignAccountMe = Omit<OpenApiAccountMe, 'settings'> & {
@@ -527,7 +555,30 @@ let requirementValidator: SigningRequirementValidator | null = null
 let actionHandler: SignFlowHandler | null = null
 const currentDocument = computed<SignDocument>(() => signStore.document)
 const visibleElementsDocument = computed(() => normalizeDocumentForVisibleElements(currentDocument.value))
+const signingFieldsStore = useSigningFieldsStore()
+const signingFieldsSummary = ref<HTMLElement | null>(null)
+const signingFields = computed(() => getVisibleElementsFromDocument(visibleElementsDocument.value)
+	.filter(field => isSigningField(field.type) && currentUserSignRequestIds.value.has(field.signRequestId)))
 const currentUserSignRequestIds = computed(() => new Set(getCurrentUserSignRequestIds(visibleElementsDocument.value)))
+const signingFieldIssues = computed(() => signingFields.value
+	.map(field => ({ field, issue: getSigningFieldIssue(field, signingFieldsStore.values[field.elementId]) }))
+	.filter(row => row.issue !== null))
+
+function focusSigningField(elementId: number) {
+	void nextTick(() => {
+		const input = signingFieldsSummary.value?.querySelector<HTMLInputElement>(`[data-signing-input="${Number(elementId)}"]`)
+		input?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+		input?.focus({ preventScroll: true })
+	})
+}
+
+function validateSigningFields(): boolean {
+	const firstIssue = signingFieldIssues.value[0]
+	if (!firstIssue) return true
+	// Keep the notice next to the inputs, not in a toast behind the header.
+	focusSigningField(firstIssue.field.elementId)
+	return false
+}
 
 const currentSignerGeolocationRequirement = computed(() =>
 	resolveFrozenGeolocationRequirement(signStore.document),
@@ -574,19 +625,30 @@ const elements = computed(() => {
 			if (!row.type || row.signRequestId === undefined) {
 				return false
 			}
+			if (isSigningField(row.type)) return signRequestIds.has(row.signRequestId)
 			const signatureData = signatureElementsStore.signs[row.type]
 			const hasSignature = Boolean(signatureData?.createdAt)
 			return hasSignature && signRequestIds.has(row.signRequestId)
 		})
+		.map(row => isSigningField(row.type) ? { ...row, value: usesSigningDate(row) ? '' : signingFieldsStore.values[row.elementId] ?? (row.type === 'checkbox' ? false : '') } : row)
 })
 
-const hasSignatures = computed(() => elements.value.length > 0)
-const needCreateSignature = computed(() => {
-	if (!canCreateSignature.value || hasSignatures.value) {
-		return false
+const hasSignatures = computed(() => elements.value.some(row => !isSigningField(row.type)))
+const missingSignatureType = computed(() => {
+	if (!canCreateSignature.value) {
+		return null
 	}
-	return hasVisibleElementsForCurrentUser(visibleElementsDocument.value)
+	const neededTypes = new Set(getVisibleElementsFromDocument(visibleElementsDocument.value)
+		.filter(row => !isSigningField(row.type) && currentUserSignRequestIds.value.has(row.signRequestId))
+		.map(row => row.type))
+	for (const type of ['signature', 'initial'] as const) {
+		if (neededTypes.has(type) && !signatureElementsStore.signs[type]?.createdAt) {
+			return type
+		}
+	}
+	return null
 })
+const needCreateSignature = computed(() => missingSignatureType.value !== null)
 const needIdentificationDocuments = computed(() => identificationDocumentStore.showDocumentsComponent())
 const canCreateSignature = computed(() => {
 	const capabilities = getCapabilities() as LibresignCapabilities
@@ -716,6 +778,7 @@ async function signWithEmailToken() {
 }
 
 const submitSignature = async (methodConfig: SignatureMethodConfig = {}) => {
+	if (!validateSigningFields()) return
 	geolocationFailureReason.value = null
 
 	if (requiresDeviceGeolocation.value && !collectedGeolocation.value) {
@@ -851,6 +914,7 @@ function dismissGeolocationFailure() {
 function confirmSignDocument() {
 	ensureServices()
 	signStore.clearSigningErrors()
+	if (!validateSigningFields()) return
 
 	const unmetRequirement = requirementValidator!.getFirstUnmetRequirement({
 		errors: signStore.errors,
@@ -883,6 +947,7 @@ function proceedWithSigning() {
 function executeSigningAction(action: string) {
 	ensureServices()
 	signStore.clearSigningErrors()
+	if (!validateSigningFields()) return
 
 	const unmetRequirement = requirementValidator!.getFirstUnmetRequirement({
 		errors: signStore.errors,
@@ -978,7 +1043,8 @@ defineExpose({
 .document-sign {
 	display: flex;
 	flex-direction: column;
-	height: 100%;
+	// The sidebar owns scrolling; let the complete form contribute its height.
+	height: auto;
 	width: 100%;
 	overscroll-behavior: contain;
 	-webkit-user-select: none;
@@ -986,9 +1052,30 @@ defineExpose({
 	-webkit-touch-callout: none;
 }
 
+.signing-fields-summary {
+	display: grid;
+	gap: 12px;
+	flex: 0 0 auto;
+	padding: 8px;
+	user-select: text;
+	&__notice { margin: 0; }
+	&__notice strong { font-weight: 700; }
+	&__notice ul { margin: 4px 0 0; padding: 0; list-style: none; }
+	&__issue { background: transparent; border: 0; padding: 4px 0; text-align: start; color: inherit; cursor: pointer; white-space: normal; }
+	&__field {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+		input:not([type='checkbox']) { width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; margin: 0; }
+		input[aria-invalid='true'] { border-color: var(--color-warning); }
+		&--checkbox { flex-direction: row; align-items: center; gap: 12px; min-height: 44px; }
+	}
+	@media (max-width: 767px) { input:not([type='checkbox']) { font-size: 16px; } }
+}
+
 .sign-elements {
-	flex: 1;
-	overflow: hidden;
+	flex: 0 0 auto;
 	width: 100%;
 }
 
@@ -1042,6 +1129,7 @@ defineExpose({
 }
 
 .button-wrapper {
+	flex: 0 0 auto;
 	padding: calc(var(--default-grid-baseline, 4px)*2);
 }
 

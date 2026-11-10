@@ -23,7 +23,7 @@
 			<!-- TRANSLATORS Informational message shown when saved user preference was reset because policy hierarchy changed. -->
 			{{ t('libresign', 'A previous signing order preference was removed because it is no longer compatible with higher-level policy.') }}
 		</NcNoteCard>
-		<NcButton v-if="filesStore.canAddSigner() && !isOriginalFileDeleted"
+		<NcButton v-if="!fixedRecipients && filesStore.canAddSigner() && !isOriginalFileDeleted"
 			:variant="hasSigners ? 'secondary' : 'primary'"
 			@click="addSigner">
 			<template #icon>
@@ -69,7 +69,8 @@
 			{{ t('libresign', 'View signing order') }}
 		</NcButton>
 		<Signers v-if="!shouldLoadDetail || isCurrentFileDetailed"
-			:event="isOriginalFileDeleted ? '' : 'libresign:edit-signer'"
+			:read-only="fixedRecipients"
+			:event="isOriginalFileDeleted || fixedRecipients ? '' : 'libresign:edit-signer'"
 			@signing-order-changed="debouncedSave">
 			<template #actions="{signer, closeActions}">
 				<template v-if="!isOriginalFileDeleted">
@@ -197,7 +198,7 @@
 				{{ t('libresign', 'Open file') }}
 			</NcButton>
 		</NcFormBox>
-		<VisibleElements />
+		<VisibleElements :allow-sign="!useModal" />
 		<NcModal v-if="modalSrc"
 			size="full"
 			:name="fileName"
@@ -217,13 +218,13 @@
 				<NcAppSidebarTab v-for="method in enabledMethods"
 					:id="`tab-${method.name}`"
 					:key="method.name"
-					:name="method.friendly_name ?? method.name">
+					:name="signerCategoryLabel(method)">
 					<template #icon>
 						<NcIconSvgWrapper :size="20"
 							:svg="getSvgIcon(method.name)" />
 					</template>
 					<IdentifySigner :signer-to-edit="signerToEdit"
-						:placeholder="method.friendly_name"
+						:placeholder="signerCategoryLabel(method)"
 						:method="method.name"
 						:methods="methods"
 						:disabled="isSignerMethodDisabled" />
@@ -286,6 +287,9 @@
 </template>
 
 <script setup lang="ts">
+function signerCategoryLabel(method: { name: string, friendly_name?: string }) {
+	return method.name === 'account' ? t('libresign', 'Internal Signers') : method.name === 'email' ? t('libresign', 'External Signers') : method.friendly_name || method.name
+}
 
 import { t } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -418,8 +422,10 @@ defineOptions({
 
 const props = withDefaults(defineProps<{
 	useModal?: boolean
+	fixedRecipients?: boolean
 }>(), {
 	useModal: false,
+	fixedRecipients: false,
 })
 
 const filesStore = useFilesStore()
@@ -506,8 +512,8 @@ const isOriginalFileDeleted = computed(() => filesStore.isOriginalFileDeleted())
 const currentFile = computed<EditableRequestFile | null>(() => (filesStore.getFile() as EditableRequestFile | null) ?? null)
 const isCurrentFileDetailed = computed(() => currentFile.value?.detailsLoaded === true)
 const shouldLoadDetail = computed(() => totalSigners.value > 0)
-const showSigningOrderOptions = computed(() => !isOriginalFileDeleted.value && isCurrentFileDetailed.value && hasSigners.value && filesStore.canSave() && canChooseSigningOrderAtRequestLevel.value)
-const showPreserveOrder = computed(() => !isOriginalFileDeleted.value && isCurrentFileDetailed.value && totalSigners.value > 1 && filesStore.canSave() && canChooseSigningOrderAtRequestLevel.value)
+const showSigningOrderOptions = computed(() => !props.fixedRecipients && !isOriginalFileDeleted.value && isCurrentFileDetailed.value && hasSigners.value && filesStore.canSave() && canChooseSigningOrderAtRequestLevel.value)
+const showPreserveOrder = computed(() => !props.fixedRecipients && !isOriginalFileDeleted.value && isCurrentFileDetailed.value && totalSigners.value > 1 && filesStore.canSave() && canChooseSigningOrderAtRequestLevel.value)
 const showRememberSignatureFlow = computed(() => showPreserveOrder.value && canSaveSignatureFlowPreference.value)
 const footerTemplateSourceOptions = computed<FooterTemplateSourceOption[]>(() => {
 	return buildFooterTemplateSourceOptions(footerPolicy.value, {
@@ -708,7 +714,7 @@ function isSignerSigned(signer: Partial<EditableRequestSigner>) {
 }
 
 const canEditSigningOrder = computed(() => (signer: Partial<EditableRequestSigner>) => {
-	if (isOriginalFileDeleted.value) {
+	if (props.fixedRecipients || isOriginalFileDeleted.value) {
 		return false
 	}
 	const minSigners = isAdminFlowForced.value ? 1 : 2
@@ -716,7 +722,7 @@ const canEditSigningOrder = computed(() => (signer: Partial<EditableRequestSigne
 })
 
 const canDelete = computed(() => (signer: Partial<EditableRequestSigner>) => {
-	if (isOriginalFileDeleted.value) {
+	if (props.fixedRecipients || isOriginalFileDeleted.value) {
 		return false
 	}
 	return filesStore.canSave() && !isSignerSigned(signer)
@@ -744,7 +750,7 @@ function canSignerActInOrder(signer: Partial<EditableRequestSigner>) {
 }
 
 const canCustomizeMessage = computed(() => (signer: Partial<EditableRequestSigner>) => {
-	if (isOriginalFileDeleted.value) {
+	if (props.fixedRecipients || isOriginalFileDeleted.value) {
 		return false
 	}
 	if (!filesStore.canRequestSign) {
@@ -767,7 +773,7 @@ const canCustomizeMessage = computed(() => (signer: Partial<EditableRequestSigne
 })
 
 const canRequestSignature = computed(() => (signer: Partial<EditableRequestSigner>) => {
-	if (isOriginalFileDeleted.value) {
+	if (props.fixedRecipients || isOriginalFileDeleted.value) {
 		return false
 	}
 	const file = filesStore.getFile()
@@ -784,7 +790,7 @@ const canRequestSignature = computed(() => (signer: Partial<EditableRequestSigne
 })
 
 const canSendReminder = computed(() => (signer: Partial<EditableRequestSigner>) => {
-	if (isOriginalFileDeleted.value) {
+	if ( isOriginalFileDeleted.value) {
 		return false
 	}
 	const file = filesStore.getFile()
@@ -1344,9 +1350,14 @@ async function save() {
 	hasLoading.value = true
 	try {
 		const policy = getPolicyPayloadForSave()
-		await filesStore.saveOrUpdateSignatureRequest({
+		const response = await filesStore.saveOrUpdateSignatureRequest({
 			...(policy ? { policy } : {}),
 		})
+		if (response && 'success' in response && response.success === false) {
+			showError(response.message || t('libresign', 'Failed to save signature request'))
+			hasLoading.value = false
+			return
+		}
 		emit('libresign:show-visible-elements', new CustomEvent('libresign:show-visible-elements'))
 	} catch (error: unknown) {
 		showRequestError(error, t('libresign', 'Failed to save signature request'))
@@ -1367,6 +1378,11 @@ async function confirmRequest() {
 			status: 1,
 			...(policy ? { policy } : {}),
 		})
+		if (response && 'success' in response && response.success === false) {
+			showError(response.message || t('libresign', 'Failed to request signatures'))
+			hasLoading.value = false
+			return
+		}
 		showSuccess(t('libresign', response.message || 'Signature requested'))
 		showConfirmRequest.value = false
 	} catch (error: unknown) {

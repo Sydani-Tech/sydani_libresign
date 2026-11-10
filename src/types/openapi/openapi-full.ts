@@ -4,6 +4,91 @@
  */
 
 export type paths = {
+    "/index.php/apps/libresign/archive/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List protected signed documents visible to the current user. */
+        get: operations["archive-index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/index.php/apps/libresign/archive/verify/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Verify an imported PDF without changing its bytes. */
+        get: operations["archive-verify-external"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/index.php/apps/libresign/archive/audit/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the audit report attached to an external import. */
+        get: operations["archive-audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/index.php/apps/libresign/archive/history/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the protected signing history for a document. */
+        get: operations["archive-history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/index.php/apps/libresign/archive/file/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Retrieve a protected signed document. */
+        get: operations["archive-file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/index.php/apps/libresign/certificate-policy.pdf": {
         parameters: {
             query?: never;
@@ -175,6 +260,331 @@ export type paths = {
         get?: never;
         /** Set user config value */
         put: operations["account-set-config"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaign/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read campaign creation permissions and upload limits. */
+        get: operations["campaign-capability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List authorised campaigns with filters and pagination. */
+        get: operations["campaign-index"];
+        put?: never;
+        /** Create a draft campaign without sending invitations. */
+        post: operations["campaign-create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a campaign and its recipient completion records. */
+        get: operations["campaign-show"];
+        /** Update a draft campaign using its current revision. */
+        put: operations["campaign-update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns/{id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish a campaign and queue independent signing requests. */
+        post: operations["campaign-publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns/{id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reuse a campaign layout without copying its recipients. */
+        post: operations["campaign-duplicate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns/{id}/process": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Process a bounded batch of queued campaign recipients. */
+        post: operations["campaign-process"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns/{id}/remind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue reminders for selected eligible campaign recipients. */
+        post: operations["campaign-remind"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry failed recipient notifications without replacing signed PDFs. */
+        post: operations["campaign-retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel pending signing links while preserving completed history. */
+        post: operations["campaign-cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns/{id}/recipients/{recipientId}/exempt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Exempt a recipient with a recorded reason. */
+        post: operations["campaign-exempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns/{id}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Retrieve the campaign source PDF for an authorised manager. */
+        get: operations["campaign-source"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns/{id}/recipients/{recipientId}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Retrieve an independent recipient PDF for an authorised manager. */
+        get: operations["campaign-file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaigns/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export recipient completion records as CSV. */
+        get: operations["campaign-export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaign/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve a recipient to an existing account or external email. */
+        post: operations["campaign-resolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaign/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Parse recipient names and email addresses from CSV or XLSX. */
+        post: operations["campaign-import-recipients"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaign/resolve-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate imported recipients and report errors per row. */
+        post: operations["campaign-resolve-import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaign/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search active internal recipient accounts. */
+        get: operations["campaign-users"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaign/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search available recipient groups. */
+        get: operations["campaign-groups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaign/groups/{groupId}/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List eligible active recipients in a group. */
+        get: operations["campaign-group-users"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -520,6 +930,181 @@ export type paths = {
          * @description Used to identify who can be invited to sign a document. The response follows Administration Settings > LibreSign > Identify method.
          */
         get: operations["identify-search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterheads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a shared letterhead template from a PDF.
+         * @description This endpoint requires admin access
+         *     This endpoint requires password confirmation
+         */
+        post: operations["letterhead-create-template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterhead/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search internal recipients or authorised letterhead approvers. */
+        get: operations["letterhead-users"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterhead/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve the intended letterhead document recipient. */
+        post: operations["letterhead-resolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterhead/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List personal documents, assigned approvals or organisational documents. */
+        get: operations["letterhead-index"];
+        put?: never;
+        /** Compose a PDF with a shared letterhead without sending invitations. */
+        post: operations["letterhead-create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterhead/documents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a letterheaded document and its approval history. */
+        get: operations["letterhead-show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterhead/documents/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a frozen letterheaded document for the selected approver. */
+        post: operations["letterhead-submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterhead/documents/{id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve or reject an assigned frozen document. */
+        post: operations["letterhead-decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterhead/documents/{id}/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare signing for the approved recipient list without sending invitations. */
+        post: operations["letterhead-request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterhead/documents/{id}/preview/{page}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Render a preview page without releasing the composed PDF. */
+        get: operations["letterhead-preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterhead/documents/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download a document only after its release rules are satisfied. */
+        get: operations["letterhead-download"];
         put?: never;
         post?: never;
         delete?: never;
@@ -924,6 +1509,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the current user signing dashboard. */
+        get: operations["signing_dashboard-index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ocs/v2.php/apps/libresign/api/{apiVersion}/admin/certificate/cfssl": {
         parameters: {
             query?: never;
@@ -1119,6 +1721,51 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/admin/all-signed-in-request-sign/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Allow every authenticated Nextcloud user to create signing requests, regardless of group. Anonymous users remain excluded by the request-sign middleware.
+         * @description This endpoint requires admin access
+         */
+        post: operations["admin-set-all-signed-in-request-sign-config"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/campaign-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the groups authorised to create campaigns.
+         * @description This endpoint requires admin access
+         */
+        get: operations["campaign-settings"];
+        put?: never;
+        /**
+         * Set the groups authorised to create campaigns.
+         * @description This endpoint requires admin access
+         *     This endpoint requires password confirmation
+         */
+        post: operations["campaign-save-settings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ocs/v2.php/apps/libresign/api/{apiVersion}/crl/list": {
         parameters: {
             query?: never;
@@ -1159,6 +1806,27 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/letterheads/{id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate or deactivate a shared letterhead.
+         * @description This endpoint requires admin access
+         *     This endpoint requires password confirmation
+         */
+        post: operations["letterhead-template-state"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ocs/v2.php/apps/libresign/api/{apiVersion}/policies/system/{policyKey}": {
         parameters: {
             query?: never;
@@ -1177,6 +1845,31 @@ export type paths = {
          * @description This endpoint requires admin access
          */
         post: operations["policy-set-system"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ocs/v2.php/apps/libresign/api/{apiVersion}/admin/reminder-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the administrator-controlled reminder schedule.
+         * @description This endpoint requires admin access
+         */
+        get: operations["reminder_schedule-settings"];
+        put?: never;
+        /**
+         * Save the administrator-controlled reminder schedule.
+         * @description This endpoint requires admin access
+         *     This endpoint requires password confirmation
+         */
+        post: operations["reminder_schedule-save"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1605,6 +2298,10 @@ export type components = {
             signers: components["schemas"]["SignerSummary"][];
         };
         FileListResponse: {
+            senders?: {
+                id: string;
+                name: string;
+            }[];
             pagination: components["schemas"]["Pagination"];
             data: (components["schemas"]["FileSummary"] | components["schemas"]["DetailedFile"])[];
             settings?: components["schemas"]["Settings"];
@@ -2276,6 +2973,12 @@ export type components = {
             fileId: number;
             type: string;
             coordinates: components["schemas"]["Coordinate"];
+            metadata?: {
+                label?: string;
+                required?: boolean;
+                useSigningDate?: boolean;
+                signingDateTimezone?: string;
+            };
         };
     };
     responses: never;
@@ -2286,6 +2989,174 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
+    "archive-index": {
+        parameters: {
+            query?: {
+                /** @description One-based page number */
+                page?: number;
+                /** @description Maximum records per page */
+                length?: number;
+                /** @description Document name search */
+                name?: string;
+                /** @description Exact sender account UID */
+                sender?: string;
+                /** @description Recipient name, email and optional account identifier */
+                recipient?: string;
+                /** @description Document status filter */
+                status?: string;
+                /** @description Date Requested or Date Completed selector */
+                dateBy?: string;
+                /** @description Inclusive start timestamp */
+                from?: number | null;
+                /** @description Inclusive end timestamp */
+                to?: number | null;
+                /** @description Sort field */
+                sortBy?: string;
+                /** @description Sort direction */
+                direction?: string;
+                /** @description Recipient name search */
+                recipientName?: string;
+                /** @description Recipient email search matched to the same signer */
+                recipientEmail?: string;
+                /** @description Letterheaded document filter */
+                letterhead?: string;
+                /** @description Internal or external signing origin filter */
+                signingOrigin?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: Record<string, never>;
+                    } | {
+                        [key: string]: Record<string, never>;
+                    }[];
+                };
+            };
+        };
+    };
+    "archive-verify-external": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description LibreSign document identifier */
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: Record<string, never>;
+                    } | {
+                        [key: string]: Record<string, never>;
+                    }[];
+                };
+            };
+        };
+    };
+    "archive-audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description LibreSign document identifier */
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                    "application/json": {
+                        [key: string]: Record<string, never>;
+                    } | {
+                        [key: string]: Record<string, never>;
+                    }[];
+                };
+            };
+        };
+    };
+    "archive-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description LibreSign document identifier */
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: Record<string, never>;
+                    } | {
+                        [key: string]: Record<string, never>;
+                    }[];
+                };
+            };
+        };
+    };
+    "archive-file": {
+        parameters: {
+            query?: {
+                /** @description Return an attachment instead of an inline PDF */
+                download?: 0 | 1;
+            };
+            header?: never;
+            path: {
+                /** @description LibreSign document identifier */
+                fileId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                    "application/json": {
+                        [key: string]: Record<string, never>;
+                    } | {
+                        [key: string]: Record<string, never>;
+                    }[];
+                };
+            };
+        };
+    };
     "certificate_policy-get-certificate-policy": {
         parameters: {
             query?: never;
@@ -2811,6 +3682,863 @@ export interface operations {
             };
         };
     };
+    "campaign-capability": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-index": {
+        parameters: {
+            query?: {
+                /** @description One-based page number */
+                page?: number;
+                /** @description Campaign filter values */
+                filters?: string;
+            };
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-create": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Campaign definition with recipients, PDF and field layout */
+                    campaign: {
+                        [key: string]: Record<string, never>;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-show": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-update": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: int64
+                     * @description Current revision for optimistic concurrency
+                     */
+                    revision: number;
+                    /** @description Campaign definition with recipients, PDF and field layout */
+                    campaign: {
+                        [key: string]: Record<string, never>;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-publish": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: int64
+                     * @description Current revision for optimistic concurrency
+                     */
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-duplicate": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-process": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-remind": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Selected recipient identifiers; an empty list means eligible recipients
+                     * @default []
+                     */
+                    recipientIds?: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-retry": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Selected recipient identifiers; an empty list means eligible recipients
+                     * @default []
+                     */
+                    recipientIds?: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-cancel": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Recorded reason for the action */
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-exempt": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+                /** @description Campaign recipient identifier */
+                recipientId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Recorded reason for the action */
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-source": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-file": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+                /** @description Campaign recipient identifier */
+                recipientId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-export": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-resolve": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Recipient name, email and optional account identifier */
+                    recipient: {
+                        [key: string]: Record<string, never>;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-import-recipients": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Base64 encoded import file */
+                    file: string;
+                    /** @description Original import filename */
+                    filename: string;
+                    /**
+                     * @description Worksheet name; empty selects the default sheet
+                     * @default
+                     */
+                    sheet?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-resolve-import": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Imported recipient rows to validate */
+                    recipients: {
+                        [key: string]: Record<string, never>;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-users": {
+        parameters: {
+            query?: {
+                /** @description Search text */
+                search?: string;
+            };
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-groups": {
+        parameters: {
+            query?: {
+                /** @description Search text */
+                search?: string;
+            };
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-group-users": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Nextcloud group identifier */
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
     "file-validate-uuid": {
         parameters: {
             query?: {
@@ -3016,6 +4744,22 @@ export interface operations {
                 parentFileId?: number | null;
                 /** @description Whether to return the detailed payload instead of the lightweight summary payload */
                 details?: 0 | 1;
+                /** @description Case-insensitive document name filter */
+                name?: string;
+                /** @description Exact sender account UID */
+                sender?: string;
+                /** @description Recipient name (matched to the same person as recipientEmail) */
+                recipientName?: string;
+                /** @description Recipient email substring, including internal account email */
+                recipientEmail?: string;
+                /** @description requested, completed or created */
+                dateBy?: string;
+                /** @description Inclusive date range start (UNIX timestamp) */
+                from?: number | null;
+                /** @description Inclusive date range end (UNIX timestamp) */
+                to?: number | null;
+                /** @description Include sender choices restricted to the user's accessible documents */
+                includeSenders?: 0 | 1;
             };
             header: {
                 /** @description Required to be true for the API request to pass */
@@ -4081,6 +5825,462 @@ export interface operations {
                         ocs: {
                             meta: components["schemas"]["OCSMeta"];
                             data: components["schemas"]["IdentifyAccountsResponse"];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-create-template": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Document name search */
+                    name: string;
+                    /** @description Base64 encoded PDF */
+                    pdf: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-users": {
+        parameters: {
+            query?: {
+                /** @description Search text */
+                search?: string;
+                /** @description Search approvers instead of recipients */
+                approvers?: 0 | 1;
+            };
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-resolve": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Recipient name, email and optional account identifier */
+                    recipient: {
+                        [key: string]: Record<string, never>;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-index": {
+        parameters: {
+            query?: {
+                /** @description One-based page number */
+                page?: number;
+                /** @description List scope or dashboard section */
+                view?: string;
+                /** @description Empty for all states, or pending */
+                state?: string;
+            };
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-create": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Document name, template, PDF, recipients and approver */
+                    document: {
+                        [key: string]: Record<string, never>;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-show": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-submit": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: int64
+                     * @description Current revision for optimistic concurrency
+                     */
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-decide": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: int64
+                     * @description Current revision for optimistic concurrency
+                     */
+                    revision: number;
+                    /** @description Approve when true; otherwise reject */
+                    approve: boolean;
+                    /**
+                     * @description Recorded reason for the action
+                     * @default
+                     */
+                    reason?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-request": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-preview": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+                /** @description One-based page number */
+                page: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "letterhead-download": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
                         };
                     };
                 };
@@ -5922,6 +8122,45 @@ export interface operations {
             };
         };
     };
+    "signing_dashboard-index": {
+        parameters: {
+            query?: {
+                /** @description List scope or dashboard section */
+                view?: string;
+                /** @description One-based page number */
+                page?: number;
+            };
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
     "admin-generate-certificate-cfssl": {
         parameters: {
             query?: never;
@@ -6448,6 +8687,120 @@ export interface operations {
             };
         };
     };
+    "admin-set-all-signed-in-request-sign-config": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Whether every authenticated user can request signatures */
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Settings saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                message: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-settings": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "campaign-save-settings": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Authorised Nextcloud group identifiers */
+                    groups: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
     "crl_api-list": {
         parameters: {
             query?: {
@@ -6573,6 +8926,49 @@ export interface operations {
             };
         };
     };
+    "letterhead-template-state": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                /** @description Record identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Whether the template is available for new documents */
+                    active: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
     "policy-get-system": {
         parameters: {
             query?: never;
@@ -6659,6 +9055,83 @@ export interface operations {
                         ocs: {
                             meta: components["schemas"]["OCSMeta"];
                             data: components["schemas"]["ErrorResponse"];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "reminder_schedule-settings": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "reminder_schedule-save": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Administrator reminder frequency, limits, times and stop date */
+                    policy: {
+                        [key: string]: Record<string, never>;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Operation completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                [key: string]: Record<string, never>;
+                            } | {
+                                [key: string]: Record<string, never>;
+                            }[];
                         };
                     };
                 };

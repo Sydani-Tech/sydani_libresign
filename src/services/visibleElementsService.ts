@@ -151,6 +151,13 @@ export const getCurrentUserSignRequestIds = (document: DocumentLike): number[] =
 			return
 		}
 		signRequestIds.add(signer.signRequestId)
+		// Envelope responses attach the child-file fields to the current parent
+		// signer, while child signer summaries do not carry a `me` flag.
+		for (const element of signer.visibleElements ?? []) {
+			if (typeof element.signRequestId === 'number') {
+				signRequestIds.add(element.signRequestId)
+			}
+		}
 	}
 
 	const signers = Array.isArray(document?.signers) ? document.signers : []

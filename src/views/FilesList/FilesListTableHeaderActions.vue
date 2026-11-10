@@ -4,7 +4,7 @@
 -->
 <template>
 	<div class="files-list__column files-list__row-actions-batch" data-cy-files-list-selection-actions>
-		<NcActions
+		<NcActions v-if="enabledMenuActions.length" ref="actionsMenu"
 			container="#app-content-vue"
 			:disabled="!!loading || areFilesLoading"
 			:force-name="true">
@@ -84,7 +84,10 @@ type BatchAction = {
 const filesStore = useFilesStore()
 const selectionStore = useSelectionStore()
 
-const enabledMenuActions = ref<BatchAction[]>([])
+const registeredActions = ref<BatchAction[]>([])
+const enabledMenuActions = computed(() => registeredActions.value.filter(action =>
+    action.id !== 'delete' || canDeleteSelection(selectionStore.selected),
+))
 const loading = ref<string | null>(null)
 const toDelete = ref<number[]>([])
 const confirmDelete = ref(false)
@@ -98,10 +101,22 @@ const areFilesLoading = computed(() => filesStore.loading)
 const visibleMenuActions = computed(() => enabledMenuActions.value.filter((action) => action.visible?.(selectionStore.selected) ?? true))
 
 function registerAction(action: BatchAction) {
-	enabledMenuActions.value = [...enabledMenuActions.value, action]
+	registeredActions.value = [...registeredActions.value, action]
+}
+
+function canDeleteSelection(ids: number[]) {
+    return ids.length > 0 && ids.every(id => {
+        const file = filesStore.files[id]
+        return !!file && filesStore.canDelete(file)
+    })
 }
 
 function doDelete() {
+    if (!canDeleteSelection(toDelete.value)) {
+        confirmDelete.value = false
+        toDelete.value = []
+        return
+    }
 	deleting.value = true
 	filesStore.deleteMultiple(toDelete.value, deleteFile.value)
 		.then(() => {
@@ -168,6 +183,10 @@ onMounted(() => {
 		iconSvgInline: () => svgDelete,
 		visible: (selection) => selection.length > 0 && selection.every((key) => filesStore.canDelete(filesStore.files[key])),
 		execBatch: (files) => {
+			if (!canDeleteSelection(files)) {
+				showError(t('libresign', 'Signed documents and their signing history cannot be deleted.'))
+				return files.map(() => null)
+			}
 			confirmDelete.value = true
 			toDelete.value = files
 			return files.map(() => null)

@@ -107,18 +107,28 @@ const routes: RouteRecordRaw[] = [
 	},
 
 	// internal pages
+	{path:'/f/letterheads',name:'letterheads',component:()=>import('../views/Letterheads.vue')},
+	{path:'/f/dashboard',name:'signingDashboard',component:()=>import('../views/SigningDashboard.vue')},
+	{
+		path: '/f/campaign',
+		name: 'campaign',
+		component: () => import('../views/Campaign.vue'),
+	},
+	{
+		path: '/f/archive',
+		name: 'organisationalArchive',
+		component: () => import('../views/OrganisationalArchive.vue'),
+	},
 	{
 		path: '/f/',
 		redirect: () => {
-			const canRequestSign = loadState('libresign', 'can_request_sign', false)
-			return { name: canRequestSign ? 'requestFiles' : 'fileslist' }
+			return { name: 'signingDashboard' }
 		},
 	},
 	{
 		path: '/',
 		redirect: () => {
-			const canRequestSign = loadState('libresign', 'can_request_sign', false)
-			return { name: canRequestSign ? 'requestFiles' : 'fileslist' }
+			return { name: 'signingDashboard' }
 		},
 	},
 	{
@@ -161,13 +171,7 @@ const routes: RouteRecordRaw[] = [
 	{
 		path: '/f/request',
 		name: 'requestFiles',
-		beforeEnter: (to, from, next) => {
-			if (!loadState('libresign', 'can_request_sign', false)) {
-				return { path: '/' }
-			}
-			next()
-		},
-		component: () => import('../views/Request.vue'),
+		redirect: to => ({ name: 'fileslist', query: to.query }),
 	},
 	{
 		path: '/f/sign/:uuid/pdf',

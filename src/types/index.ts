@@ -117,7 +117,9 @@ export type IdentifyMethodRecord = Omit<OpenApiIdentifyMethodRecord, 'mandatory'
 	requirement?: IdentifyMethodRequirement
 }
 export type IdentifyAccountRecord = ApiComponents['schemas']['IdentifyAccount']
-export type VisibleElementRecord = ApiComponents['schemas']['VisibleElement']
+export type VisibleElementRecord = ApiComponents['schemas']['VisibleElement'] & {
+	metadata?: { label?: string, required?: boolean, useSigningDate?: boolean, signingDateTimezone?: string }
+}
 export type FileSettings = ApiComponents['schemas']['FolderSettings']
 export type IdentifyMethodSetting = AdminComponents['schemas']['IdentifyMethodAdminSetting']
 export type IdentifyMethodsEffectivePolicyValue = {
@@ -126,7 +128,7 @@ export type IdentifyMethodsEffectivePolicyValue = {
 }
 export type ProgressPayload = ApiComponents['schemas']['ProgressPayload']
 export type FileDetailRecord = ApiComponents['schemas']['DetailedFile']
-export type ValidationFileRecord = ApiComponents['schemas']['ValidatedFile']
+export type ValidationFileRecord = ApiComponents['schemas']['ValidatedFile'] & {longTermValidation?: import('../services/verificationSummary').LongTermValidation}
 export type FileSummaryRecord = ApiComponents['schemas']['FileSummary']
 export type FileListItemRecord = ApiComponents['schemas']['FileListItem']
 type OpenApiSignerDetailRecord = ApiComponents['schemas']['SignerDetail']
@@ -170,7 +172,10 @@ export type RequestSignatureSignerPayload = Omit<OpenApiRequestSignatureSignerPa
 	identifyMethods?: IdentifyMethodRecord[]
 }
 export type RequestSignatureSignerResponse = NonNullable<RequestSignatureResponse['signers']>[number]
-export type RequestSignatureVisibleElementPayload = NonNullable<RequestSignatureUpdatePayload['visibleElements']>[number]
+export type RequestSignatureVisibleElementPayload = Omit<NonNullable<RequestSignatureUpdatePayload['visibleElements']>[number], 'elementId'> & {
+	elementId?: number
+	metadata?: { label?: string, required?: boolean, useSigningDate?: boolean, signingDateTimezone?: string }
+}
 export type FileStatus = FileListEntry['status']
 export type FileStatusText = FileListEntry['statusText']
 export type SelectedFileView = Pick<FileListEntry, 'id' | 'nodeId' | 'name' | 'status' | 'statusText'>
@@ -178,6 +183,7 @@ export type SignatureEngineId = 'JSignPdf' | 'PhpNative'
 export type CertificateEngineId = 'openssl' | 'cfssl' | 'none'
 
 export type AdminInitialState = {
+	allow_all_signed_in_request_sign: boolean
 	signature_engine: SignatureEngineId
 	ldap_extension_available: boolean
 }

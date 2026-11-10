@@ -151,6 +151,21 @@ describe('files store - critical business rules', () => {
 		axiosMock.get.mockResolvedValue(generateOCSResponse({ payload: null }))
 	})
 
+	describe('report filters', () => {
+		it('sends server filters and preserves them across pagination', async () => {
+			const store = useFilesStore()
+			store.reportFilters = { name: 'Handbook', sender: 'hr', recipientName: 'Bob', recipientEmail: 'bob@example.test', status: 'draft', dateBy: 'completed', fromDate: '2026-10-01', toDate: '', sortBy: 'sender', direction: 'asc' }
+			axiosMock.get.mockResolvedValueOnce({data:{ocs:{data:{data:[],senders:[{id:'hr',name:'HR'}],pagination:{next:'https://example.test/ocs/v2.php/apps/libresign/api/v1/file/list?page=2'}}}}}).mockResolvedValueOnce({data:{ocs:{data:{data:[],pagination:{next:null}}}}})
+			await store.getAllFiles()
+			await store.getAllFiles()
+			for (const call of axiosMock.get.mock.calls) { const params = new URL(call[0]).searchParams; expect(params.get('sender')).toBe('hr'); expect(params.get('recipientEmail')).toBe('bob@example.test'); expect(params.get('status[]')).toBe('0'); expect(params.get('sortBy')).toBe('user_id'); expect(params.get('sortDirection')).toBe('asc'); expect(params.get('includeSenders')).toBe('true') }
+			expect(store.senders).toEqual([{id:'hr',name:'HR'}])
+		})
+		it('releases loading and clears stale results when a filtered request fails', async () => {
+			const store = useFilesStore(); store.files[1] = {id:1,name:'stale'}; store.ordered=[1]; axiosMock.get.mockRejectedValueOnce(new Error('Network'))
+			await expect(store.getAllFiles()).rejects.toThrow('Network'); expect(store.loading).toBe(false); expect(store.filesSorted()).toEqual([])
+		})
+	})
 	describe('RULE: removing selected file clears selection', () => {
 		it('removing selected file resets selectedFileId', () => {
 			const store = useFilesStore()
@@ -670,6 +685,26 @@ describe('files store - critical business rules', () => {
 	})
 
 	describe('RULE: signer operations maintain consistency', () => {
+		it.each([2, 3])('never permits deletion of a protected signing record (status %s)', (status) => {
+			const store = useFilesStore()
+			store.canRequestSign = true
+			store.files[1] = { id: 1, status, requested_by: { userId: 'testuser' } }
+			expect(store.canDelete(store.files[1])).toBe(false)
+		})
+
+		it('retains signing access for the remaining participant after source deletion', () => {
+			const store = useFilesStore()
+			store.files[1] = {
+				id: 1, status: 2, signatureFlow: 'ordered_numeric',
+				metadata: { original_file_deleted: true },
+				signers: [
+					{ me: false, signed: '2026-10-15T10:00:00Z', signingOrder: 1 },
+					{ me: true, signed: null, signingOrder: 2, sign_request_uuid: 'second-signer' },
+				],
+			}
+			expect(store.canSign(store.files[1])).toBe(true)
+		})
+
 		it('deleting signer updates signing order for remaining signers', async () => {
 			const store = useFilesStore()
 			store.selectedFileId = 1
@@ -1162,6 +1197,37 @@ describe('files store - critical business rules', () => {
 	})
 
 	describe('RULE: saveOrUpdateSignatureRequest payload rules', () => {
+		it.each([true, false])('preserves the ordinary Date policy across save (automatic=%s)', async (automatic) => {
+			const store = useFilesStore(); store.selectedFileId=1; store.files[1]={id:1,name:'date-qa.pdf',signers:[]}
+			axiosMock.mockResolvedValue({data:{ocs:{data:{id:1,signers:[]}}}})
+			const metadata={label:'Signed on',required:true,useSigningDate:automatic,ignored:'not sent'}
+			await store.saveOrUpdateSignatureRequest({visibleElements:[{fileId:1,signRequestId:12,type:'date',coordinates:{page:1,top:10,left:20,width:150,height:28},metadata}]})
+			expect(axiosMock.mock.calls[0][0].data.visibleElements[0].metadata).toEqual(automatic?{label:'Signed on',required:true,useSigningDate:true,signingDateTimezone:'Africa/Lagos'}:{label:'Signed on',required:true})
+		})
+		it('keeps unsaved Date-policy edits separate from the last server definition', async () => {
+			const store=useFilesStore(); const original={id:1,name:'qa.pdf',signers:[],visibleElements:[{elementId:7,type:'date',metadata:{label:'Signed on',required:true,useSigningDate:true,signingDateTimezone:'Africa/Lagos'}}]}
+			await store.addFile(original); const draft=store.getEditableFile(1); const field=draft.visibleElements?.[0]; if(!field?.metadata) throw new Error('Expected editable Date field metadata'); field.metadata.useSigningDate=false
+			expect(original.visibleElements[0].metadata.useSigningDate).toBe(true)
+		})
+		it('preserves only signing-field settings in the request payload', async () => {
+			const store = useFilesStore()
+			const untrustedMetadata = { label: 'Legal name', required: false, useSigningDate: true, ignored: 'not sent' }
+			store.selectedFileId = 1
+			store.files[1] = { id: 1, name: 'contract.pdf', signers: [] }
+			axiosMock.mockResolvedValue({ data: { ocs: { data: { id: 1, signers: [] } } } })
+
+			await store.saveOrUpdateSignatureRequest({ visibleElements: [{
+				fileId: 1,
+				signRequestId: 12,
+				type: 'text',
+				coordinates: { page: 1, top: 10, left: 20, width: 90, height: 20 },
+				metadata: untrustedMetadata,
+			}] })
+
+			const config = axiosMock.mock.calls[0][0]
+			expect(config.data.visibleElements[0].metadata).toEqual({ label: 'Legal name', required: false })
+		})
+
 			it('sends signers field as canonical payload', async () => {
 				const store = useFilesStore()
 				store.selectedFileId = 1

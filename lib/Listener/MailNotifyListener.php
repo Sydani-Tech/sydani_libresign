@@ -45,6 +45,7 @@ class MailNotifyListener implements IEventListener {
 			SendSignNotificationEvent::class => $this->sendSignMailNotification(
 				$event->getSignRequest(),
 				$event->getIdentifyMethod(),
+				$event->isReminder(),
 			),
 			SignedEvent::class => $this->sendSignedMailNotification(
 				$event->getSignRequest(),
@@ -63,6 +64,7 @@ class MailNotifyListener implements IEventListener {
 	protected function sendSignMailNotification(
 		SignRequest $signRequest,
 		IIdentifyMethod $identifyMethod,
+		bool $reminder = false,
 	): void {
 		try {
 			if ($identifyMethod->getEntity()->isDeletedAccount()) {
@@ -94,6 +96,7 @@ class MailNotifyListener implements IEventListener {
 			}
 
 			$isFirstNotification = $this->signRequestMapper->incrementNotificationCounter($signRequest, 'mail');
+			if ($reminder) { $this->mail->notifyReminder($signRequest, $email); return; }
 			if ($isFirstNotification) {
 				$this->mail->notifyUnsignedUser($signRequest, $email, $signRequest->getDescription());
 				return;

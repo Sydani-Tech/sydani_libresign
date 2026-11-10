@@ -21,6 +21,7 @@ import { useIdentificationDocumentStore } from './identificationDocument.js'
 import { usePoliciesStore } from './policies'
 import { useSidebarStore } from './sidebar.js'
 import { FILE_STATUS } from '../constants.js'
+import { documentFilterParams } from '../services/documentFilters.ts'
 import { getSigningRouteUuid } from '../utils/signRequestUuid.ts'
 
 /** @typedef {import('../types/index').IdentifyMethodRecord} SignerMethodRecord */
@@ -196,6 +197,8 @@ const _filesStore = defineStore('files', () => {
 	const loading = ref(false)
 	const canRequestSign = ref(loadState('libresign', 'can_request_sign', false))
 	const ordered = ref(/** @type {number[]} */ ([]))
+	const reportFilters = ref(/** @type {import('../services/documentFilters').DocumentFilters | null} */ (null))
+	const senders = ref(/** @type {import('../services/documentFilters').SenderOption[]} */ ([]))
 	const paginationNextUrl = ref('')
 	const loadedAll = ref(false)
 	const getStore = () => _filesStore()
@@ -212,6 +215,7 @@ const _filesStore = defineStore('files', () => {
 	const cloneVisibleElement = (element) => element && typeof element === 'object'
 		? {
 			...element,
+			metadata: element.metadata && typeof element.metadata === 'object' ? { ...element.metadata } : element.metadata,
 			coordinates: element.coordinates && typeof element.coordinates === 'object'
 				? { ...element.coordinates }
 				: element.coordinates,
@@ -322,6 +326,8 @@ const _filesStore = defineStore('files', () => {
 		ordered.value = []
 		paginationNextUrl.value = ''
 		loadedAll.value = false
+		reportFilters.value = null
+		senders.value = []
 	}
 
 	/** @param {number | null | undefined} fileId */
@@ -716,7 +722,7 @@ const _filesStore = defineStore('files', () => {
 		if (typeof selectedFile?.canSign === 'boolean') {
 			return selectedFile.canSign
 		}
-		if (isOriginalFileDeleted(selectedFile)) {
+		if (isOriginalFileDeleted(selectedFile) && ![2, 3].includes(Number(selectedFile?.status))) {
 			return false
 		}
 		const isSigned = (signer) => Array.isArray(signer.signed)
@@ -761,6 +767,11 @@ const _filesStore = defineStore('files', () => {
 
 	function canDelete(file) {
 		const selectedFile = getFile(file)
+		if ([2, 3].includes(Number(selectedFile?.status))
+			|| selectedFile?.metadata?.organisational_archive
+			|| selectedFile?.signers?.some(signer => Array.isArray(signer.signed) ? signer.signed.length > 0 : !!signer.signed)) {
+			return false
+		}
 		return canRequestSign.value
 			&& (
 				!Object.hasOwn(selectedFile, 'requested_by')
@@ -895,6 +906,18 @@ const _filesStore = defineStore('files', () => {
 					fileId: element.fileId,
 					type: element.type,
 					coordinates,
+					...(['text', 'date', 'checkbox'].includes(element.type)
+						? {
+							metadata: {
+								label: element.metadata?.label || '',
+								required: element.metadata?.required !== false,
+								...(element.type === 'date' && element.metadata?.useSigningDate === true ? {
+									useSigningDate: true,
+									signingDateTimezone: element.metadata?.signingDateTimezone || 'Africa/Lagos',
+								} : {}),
+							},
+						}
+						: {}),
 				}
 			})
 			.filter((element) => element && element.coordinates && element.type)
@@ -1176,7 +1199,7 @@ const _filesStore = defineStore('files', () => {
 			? generateOcsUrl('/apps/libresign/api/v1/file/list')
 			: paginationNextUrl.value
 
-		const urlObj = new URL(url)
+		const urlObj = new URL(url, globalThis.location.origin)
 		const params = new URLSearchParams(urlObj.search)
 
 		if (filter) {
@@ -1189,11 +1212,11 @@ const _filesStore = defineStore('files', () => {
 		}
 		params.set('details', requestDetails ? 'true' : 'false')
 		const filtersStore = useFiltersStore()
-		filtersStore.filterStatusArray.forEach(id => {
+		if (!reportFilters.value) filtersStore.filterStatusArray.forEach(id => {
 			params.append('status[]', id)
 		})
 		const modifiedRange = filtersStore.filterModifiedRange
-		if (modifiedRange) {
+		if (!reportFilters.value && modifiedRange) {
 			params.set('start', Math.floor(modifiedRange.start / 1000))
 			params.set('end', Math.floor(modifiedRange.end / 1000))
 		}
@@ -1205,15 +1228,36 @@ const _filesStore = defineStore('files', () => {
 			params.set('sortDirection', sortingDirection)
 		}
 
+		if (reportFilters.value) {
+			const values = documentFilterParams(reportFilters.value)
+			for (const [key, value] of Object.entries(values)) {
+				if (['status', 'sortBy', 'direction'].includes(key)) continue
+				params.delete(key)
+				if (value !== undefined && value !== '') params.set(key, String(value))
+			}
+			params.delete('status[]')
+			params.delete('status')
+			const statuses = { draft: 0, pending: 1, partial: 2, completed: 3, signing: 5 }
+			if (values.status in statuses) params.set('status[]', String(statuses[values.status]))
+			const sortColumns = { requested: 'requested_at', completed: 'completed_at', created: 'created_at', name: 'name', sender: 'user_id', status: 'status', signers: 'signers' }
+			params.set('sortBy', sortColumns[values.sortBy] || 'requested_at')
+			params.set('sortDirection', values.direction)
+			params.set('includeSenders', 'true')
+		}
 		urlObj.search = params.toString()
 
-		const response = await axios.get(urlObj.toString())
+		let response
+		try { response = await axios.get(urlObj.toString()) } catch (error) {
+			apiFiles.value = {}; files.value = {}; ordered.value = []; paginationNextUrl.value = ''; loadedAll.value = false; loading.value = false
+			throw error
+		}
 
 		if (!paginationNextUrl.value) {
 			apiFiles.value = {}
 			files.value = {}
 			ordered.value = []
 		}
+		if (response.data.ocs.data.senders) senders.value = response.data.ocs.data.senders
 		paginationNextUrl.value = response.data.ocs.data.pagination.next
 		loadedAll.value = !paginationNextUrl.value
 		response.data.ocs.data.data.forEach((file) => {
@@ -1442,6 +1486,8 @@ const _filesStore = defineStore('files', () => {
 		deleteMultiple,
 		rename,
 		upload,
+		reportFilters,
+		senders,
 		getAllFiles,
 		updateAllFiles,
 		filesSorted,
@@ -1456,7 +1502,14 @@ export const useFilesStore = function(...args) {
 	const filesStore = _filesStore(...args)
 	if (!_initialized) {
 		subscribe('libresign:filters:update', filesStore.updateAllFiles)
-		subscribe('libresign:sorting:update', filesStore.updateAllFiles)
+		subscribe('libresign:sorting:update', () => {
+			if (filesStore.reportFilters) {
+				const sorting = useFilesSortingStore()
+				const keys = { requested_at: 'requested', completed_at: 'completed', created_at: 'created', user_id: 'sender' }
+				filesStore.reportFilters = { ...filesStore.reportFilters, sortBy: keys[sorting.sortingMode] || sorting.sortingMode, direction: sorting.sortingDirection }
+			}
+			void filesStore.updateAllFiles()
+		})
 		_initialized = true
 	}
 	return filesStore

@@ -82,6 +82,7 @@ class AccountService {
 		private FileUploadHelper $uploadHelper,
 		private CrlService $crlService,
 		private RequestSignAuthorizationService $requestSignAuthorizationService,
+		private DocumentArchiveService $documentArchive,
 	) {
 	}
 
@@ -124,8 +125,7 @@ class AccountService {
 	public function getFileByUuid(string $uuid): array {
 		$signRequest = $this->getSignRequestByUuid($uuid);
 		$fileData = $this->fileMapper->getById($signRequest->getFileId());
-		$nodeId = $fileData->getNodeId();
-		$fileToSign = $this->root->getUserFolder($fileData->getUserId())->getFirstNodeById($nodeId);
+		$fileToSign = $this->documentArchive->resolve($fileData);
 
 		return [
 			'fileData' => $fileData,
@@ -356,6 +356,24 @@ class AccountService {
 	 */
 	public function getPdfByUuid(string $uuid): File {
 		$fileData = $this->fileMapper->getByUuid($uuid);
+		if ($fileData->getExternallySigned()) {
+			throw new DoesNotExistException('Not found');
+		}
+
+		$metadata = $fileData->getMetadata() ?? [];
+		// Keep letterhead release approval before resolving application-owned PDFs.
+		if (!empty($metadata['letterhead'])) {
+			\OCP\Server::get(LetterheadService::class)->assertRelease($fileData);
+		}
+		// Campaign snapshots also live outside the sender's personal Files tree.
+		if (!empty($metadata['letterhead']) || !empty($metadata['campaign'])) {
+			try {
+				return $this->documentArchive->resolve($fileData,
+					in_array($fileData->getStatus(), [FileStatus::PARTIAL_SIGNED->value, FileStatus::SIGNED->value], true));
+			} catch (NotFoundException) {
+				throw new DoesNotExistException('Not found');
+			}
+		}
 
 		if (in_array($fileData->getStatus(), [FileStatus::PARTIAL_SIGNED->value, FileStatus::SIGNED->value])) {
 			$nodeId = $fileData->getSignedNodeId();

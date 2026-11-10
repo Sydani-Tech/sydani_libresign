@@ -12,11 +12,14 @@ use OCA\Libresign\Service\Policy\Provider\RequestSignGroups\RequestSignGroupsPol
 use OCA\Libresign\Service\Policy\Provider\RequestSignGroups\RequestSignGroupsPolicyValue;
 use OCP\IGroupManager;
 use OCP\IUser;
+use OCP\IAppConfig;
+use OCA\Libresign\AppInfo\Application;
 
 class RequestSignAuthorizationService {
 	public function __construct(
 		private PolicyService $policyService,
 		private IGroupManager $groupManager,
+		private IAppConfig $appConfig,
 	) {
 	}
 
@@ -33,6 +36,10 @@ class RequestSignAuthorizationService {
 	public function canRequestSign(?IUser $user = null): bool {
 		if (!$user instanceof IUser) {
 			return false;
+		}
+
+		if ($this->appConfig->getValueBool(Application::APP_ID, 'allow_all_signed_in_request_sign', true)) {
+			return true;
 		}
 
 		$resolvedPolicy = $this->policyService->resolveForUser(RequestSignGroupsPolicy::KEY, $user);

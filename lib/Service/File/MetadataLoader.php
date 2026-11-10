@@ -23,6 +23,7 @@ class MetadataLoader {
 		private IURLGenerator $urlGenerator,
 		private FileContentProvider $contentProvider,
 		private LoggerInterface $logger,
+		private \OCA\Libresign\Service\DocumentArchiveService $documentArchive,
 	) {
 	}
 
@@ -79,7 +80,7 @@ class MetadataLoader {
 			$nodeId = $file->getNodeId();
 		}
 
-		$fileNode = $this->root->getUserFolder($file->getUserId())->getFirstNodeById($nodeId);
+		$fileNode = $this->documentArchive->resolve($file);
 
 		if (!$fileNode instanceof \OCP\Files\File && !$fileNode instanceof \OCP\Files\Folder) {
 			throw new \OCA\Libresign\Exception\LibresignException('File not found', 404);

@@ -22,6 +22,7 @@ class FileContentProvider {
 		private IRootFolder $root,
 		private LoggerInterface $logger,
 		private IL10N $l10n,
+		private \OCA\Libresign\Service\DocumentArchiveService $documentArchive,
 	) {
 	}
 
@@ -132,7 +133,7 @@ class FileContentProvider {
 				$nodeId = $file->getNodeId();
 			}
 
-			$fileNode = $this->root->getUserFolder($file->getUserId())->getFirstNodeById($nodeId);
+			$fileNode = $this->documentArchive->resolve($file);
 
 			if (!$fileNode instanceof \OCP\Files\File) {
 				// TRANSLATORS Error shown when the requested document cannot be found.

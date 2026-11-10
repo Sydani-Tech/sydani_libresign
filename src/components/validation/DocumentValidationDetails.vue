@@ -38,12 +38,20 @@
 		</ul>
 		<div class="info-document">
 			<NcRichText v-if="legalInformation" class="legal-information" :text="legalInformation" :use-markdown="true" />
-			<NcButton v-if="document.uuid" variant="primary" @click="viewDocument">
-				<template #icon>
-					<NcIconSvgWrapper :path="mdiEye" :size="20" />
-				</template>
-				{{ t('libresign', 'View document') }}
-			</NcButton>
+			<div v-if="document.uuid" class="document-actions">
+				<NcButton variant="primary" @click="viewDocument">
+					<template #icon>
+						<NcIconSvgWrapper :path="mdiEye" :size="20" />
+					</template>
+					{{ t('libresign', 'View document') }}
+				</NcButton>
+				<NcButton v-if="downloadUrl" :href="downloadUrl" download variant="secondary">
+					<template #icon>
+						<NcIconSvgWrapper :path="mdiDownload" :size="20" />
+					</template>
+					{{ t('libresign', 'Download Document') }}
+				</NcButton>
+			</div>
 		</div>
 
 		<ul v-if="document.signers && document.signers.length > 0" class="signers">
@@ -63,6 +71,7 @@ import NcRichText from '@nextcloud/vue/components/NcRichText'
 
 import {
 	mdiEye,
+	mdiDownload,
 } from '@mdi/js'
 
 import { getStatusLabel } from '../../utils/fileStatus.js'
@@ -98,6 +107,11 @@ const size = computed(() => {
 
 const documentStatus = computed(() => getStatusLabel(document.value.status))
 
+// A normal attachment request preserves the signed bytes; the viewer print path does not.
+const downloadUrl = computed(() => document.value.uuid && [2, 3].includes(Number(document.value.status))
+	? generateUrl('/apps/libresign/p/pdf/{uuid}', { uuid: document.value.uuid }) + '?download=1'
+	: '')
+
 async function viewDocument() {
 	if (!document.value.uuid || !document.value.name) {
 		return
@@ -113,6 +127,7 @@ defineExpose({
 	documentStatus,
 	size,
 	viewDocument,
+	downloadUrl,
 })
 </script>
 
@@ -138,6 +153,12 @@ defineExpose({
 			opacity: 0.8;
 			font-size: 1rem;
 		}
+	}
+
+	.document-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 12px;
 	}
 
 	:deep(.list-item__wrapper) {

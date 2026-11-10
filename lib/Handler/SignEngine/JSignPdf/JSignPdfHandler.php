@@ -12,6 +12,8 @@ use Imagick;
 use ImagickPixel;
 use OCA\Libresign\AppInfo\Application;
 use OCA\Libresign\Exception\LibresignException;
+use OCA\Libresign\Exception\TemporaryTimestampException;
+use OCA\Libresign\Service\TimestampRetryService;
 use OCA\Libresign\Handler\CertificateEngine\CertificateEngineFactory;
 use OCA\Libresign\Handler\SignEngine\Pkcs12Handler;
 use OCA\Libresign\Helper\JavaHelper;
@@ -43,6 +45,8 @@ class JSignPdfHandler extends Pkcs12Handler {
 	/** @var JSignParam */
 	private $jSignParam;
 	private array $parsedSignatureText = [];
+	private bool $preparedSignatureLayout = false;
+	private array $preparedSignatureFields = [];
 
 	public function __construct(
 		private IAppConfig $appConfig,
@@ -56,6 +60,8 @@ class JSignPdfHandler extends Pkcs12Handler {
 		private DocMdpConfigService $docMdpConfigService,
 		private HashAlgorithmResolver $hashAlgorithmResolver,
 		private TemporarySignatureImageService $temporarySignatureImageService,
+		private \OCA\Libresign\Service\PdfSigningFieldsService $pdfSigningFieldsService,
+		private TimestampRetryService $timestampRetryService,
 	) {
 	}
 
@@ -82,7 +88,9 @@ class JSignPdfHandler extends Pkcs12Handler {
 			if (!is_writable($tempPath)) {
 				throw new \Exception('The path ' . $tempPath . ' is not writtable. Fix this or change the LibreSign app setting jsignpdf_temp_path to a writtable path');
 			}
-			$jSignPdfPath = $this->appConfig->getValueString(Application::APP_ID, 'jsignpdf_path');
+			$jSignPdfPath = \OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class)->engineDirectory(
+				$this->appConfig->getValueString(Application::APP_ID, 'jsignpdf_path'),
+			);
 			if (!is_dir($jSignPdfPath)) {
 				throw new \Exception('Invalid JSignPdf path. Run occ libresign:install --jsignpdf');
 			}
@@ -212,8 +220,53 @@ class JSignPdfHandler extends Pkcs12Handler {
 
 	#[\Override]
 	public function getSignedContent(): string {
-		$normalizedPdf = $this->normalizePdfVersion($this->getInputFile()->getContent());
-		$hashAlgorithm = $this->hashAlgorithmResolver->forSignature($this->extractPdfVersion($normalizedPdf));
+		// The handler is reused by sequential/worker flows. Never append a new
+		// signer's options to the previous signature's coordinates or certificate.
+		$this->jSignParam = null;
+		$this->parsedSignatureText = [];
+		$this->preparedSignatureLayout = false;
+		$this->preparedSignatureFields = [];
+		$inputPdf = $this->getInputFile()->getContent();
+		$lt = \OCP\Server::get(\OCA\Libresign\Service\PadesLtService::class);
+		$verifier = $lt->enabled() ? \OCP\Server::get(\OCA\Libresign\Service\PadesVerificationService::class) : null;
+		$existing = [];
+		$mixed = false;
+		$checkedField = null;
+		$visibleElements = $this->getVisibleElements();
+		$fields = $this->getSignatureParams()['SigningFields'] ?? [];
+		$signatureFields = $lt->enabled() ? ($this->getSignatureParams()['SignatureFields'] ?? []) : [];
+		if ($verifier && $this->hasExistingSignatures($inputPdf)) {
+			$existing = \OCA\Libresign\Service\PdfCountersigningPolicy::existing($verifier->verify($inputPdf));
+			$mixed = count(array_filter($existing, [\OCA\Libresign\Service\PdfCountersigningPolicy::class, 'isLt'])) !== count($existing);
+			$hasFieldLocks = (bool)array_filter($existing, static fn (array $signature): bool => !empty($signature['fieldLocked']));
+			$nativeLayout = (bool)array_filter($existing, static fn (array $signature): bool => (bool)array_filter($signature['signatureFields'] ?? [], static fn (string $name): bool => str_starts_with($name, 'libresign_signature_')));
+			if ($mixed || $hasFieldLocks || (!$fields && !$nativeLayout)) {
+				$available = array_values(array_filter(
+					$verifier->availableSignatureFields($inputPdf),
+					static fn (array $field): bool => \OCA\Libresign\Service\PdfCountersigningPolicy::permitsExistingField($existing, $field['name']),
+				));
+				$checkedField = $this->existingSignatureField($available, $visibleElements);
+				if ($mixed || $hasFieldLocks || $checkedField !== null) {
+					\OCA\Libresign\Service\PdfCountersigningPolicy::preflight($existing, $fields, $checkedField);
+					$mixed = true;
+				}
+			}
+		}
+		$lt->refreshLocalRevocation($this->getCertificate(), $this->getPassword());
+		$normalizedPdf = $this->hasExistingSignatures($inputPdf) ? $inputPdf : $this->normalizePdfVersion($inputPdf);
+		$layout = $this->pdfSigningFieldsService->prepare($normalizedPdf, $fields, $mixed ? [] : $signatureFields);
+		$normalizedPdf = $layout['pdf'];
+		$this->preparedSignatureLayout = $layout['prepared'] && $signatureFields !== [];
+		$this->preparedSignatureFields = $layout['signatureFields'];
+		$finish = function (string $signed) use ($mixed, $verifier, $inputPdf, $existing, $checkedField): string {
+			if ($mixed) return $verifier->completeCountersignature($inputPdf, $signed, $existing, $this->getCertificate(), $this->getPassword(), $checkedField);
+			if ($this->preparedSignatureLayout && $verifier) return $verifier->completeManagedSignatures($inputPdf, $signed, $existing, $this->getCertificate(), $this->getPassword());
+			$verifier?->assertLt($signed);
+			return $signed;
+		};
+		$hashAlgorithm = $lt->enabled()
+			? $this->hashAlgorithmResolver->forLongTermSignature()
+			: $this->hashAlgorithmResolver->forSignature($this->extractPdfVersion($normalizedPdf));
 		$param = $this->getJSignParam();
 		$param->setCertificate($this->getCertificate())
 			->setPdf($normalizedPdf)
@@ -221,25 +274,59 @@ class JSignPdfHandler extends Pkcs12Handler {
 
 		$parameters = [];
 		$certificationLevel = $this->getCertificationLevel();
-		if ($certificationLevel !== null && !$this->getVisibleElements() && !$this->hasExistingSignatures($normalizedPdf)) {
+		if ($certificationLevel !== null && !$visibleElements && !$this->hasExistingSignatures($normalizedPdf)) {
 			$parameters['-cl'] = $certificationLevel;
 		}
-		$parameters += $this->getTsaParameters();
-		$param->addJSignParameters($parameters);
-		$tsaPassword = $this->getTsaPassword();
-		if ($tsaPassword !== '') {
-			$param->setTsaPassword($tsaPassword);
+		if ($this->preparedSignatureLayout && !$visibleElements) {
+			$slotId = $this->getSignatureParams()['InvisibleSignatureField'] ?? '';
+			$parameters['-sf'] = $this->preparedSignatureField((string)$slotId);
 		}
+		$parameters += $this->getTsaParameters();
+		$parameters += $lt->parameters($mixed);
+		if ($checkedField !== null) {
+			$parameters['-sf'] = $checkedField;
+			if (!$visibleElements) $parameters['-V'] = null;
+		}
+		$param->addJSignParameters($this->toJSignParameters($parameters));
+		$tsaPassword = $this->getTsaPassword();
+		if ($tsaPassword !== '') $param->setTsaPassword($tsaPassword);
 
 		$signed = $this->signUsingVisibleElements($normalizedPdf, $hashAlgorithm);
-		if ($signed) {
-			return $signed;
-		}
+		if ($signed) return $finish($signed);
 
 		$param->addJSignParameters(['--hash-algorithm' => $hashAlgorithm]);
 		$jSignPdf = $this->getJSignPdf();
 		$jSignPdf->setParam($param);
-		return $this->signWrapper($jSignPdf);
+		return $finish($this->signWrapper($jSignPdf));
+	}
+
+	/**
+	 * Reuse a box when the sender's marker is inside it. Without a marker,
+	 * choose an existing field only when the document offers exactly one.
+	 */
+	private function existingSignatureField(array $available, array $visibleElements): ?string {
+		if (!$visibleElements) {
+			if (count($available) > 1) {
+				throw new LibresignException('This PDF has several available signature fields. Place a signature marker inside the intended field.');
+			}
+			return $available[0]['name'] ?? null;
+		}
+		$matches = [];
+		foreach ($visibleElements as $element) {
+			$position = $element->getFileElement();
+			$x = ($position->getLlx() + $position->getUrx()) / 2;
+			$y = ($position->getLly() + $position->getUry()) / 2;
+			foreach ($available as $field) {
+				[$left, $bottom, $right, $top] = $field['rectangle'];
+				if ((int)$position->getPage() === $field['page'] && $x >= $left && $x <= $right && $y >= $bottom && $y <= $top) {
+					$matches[] = $field['name'];
+				}
+			}
+		}
+		if ($matches && (count($matches) !== 1 || count($visibleElements) !== 1)) {
+			throw new LibresignException('To reuse a PDF signature field, place one signature marker inside the intended field.');
+		}
+		return $matches[0] ?? null;
 	}
 
 	private function signUsingVisibleElements(string $normalizedPdf, string $hashAlgorithm): string {
@@ -283,7 +370,9 @@ class JSignPdfHandler extends Pkcs12Handler {
 			$originalParam = $this->getJSignParam();
 
 			foreach ($visibleElements as $element) {
+				unset($params['--img-path'], $params['--bg-path'], $params['--render-mode'], $params['--font-size'], $params['--bg-scale']);
 				$elementIndex++;
+				if ($this->preparedSignatureLayout) $params['-sf'] = $this->preparedSignatureField((string)$element->getFileElement()->getId());
 				$params['-pg'] = $element->getFileElement()->getPage();
 				if ($params['-pg'] <= self::PAGE_FIRST) {
 					unset($params['-pg']);
@@ -304,6 +393,10 @@ class JSignPdfHandler extends Pkcs12Handler {
 
 				$signatureImagePath = $element->getTempFile();
 				$this->temporarySignatureImageService->requireAvailable($signatureImagePath);
+				if ($renderMode === SignerElementsService::RENDER_MODE_GRAPHIC_ONLY) {
+					$signatureImagePath = $this->fitSignatureToField($signatureImagePath, $params['-urx'] - $params['-llx'], $params['-ury'] - $params['-lly']);
+					$params['--bg-scale'] = -1;
+				}
 				if ($backgroundType === 'deleted') {
 					if ($renderMode === SignerElementsService::RENDER_MODE_SIGNAME_AND_DESCRIPTION) {
 						$params['--render-mode'] = SignerElementsService::RENDER_MODE_GRAPHIC_AND_DESCRIPTION;
@@ -370,9 +463,57 @@ class JSignPdfHandler extends Pkcs12Handler {
 		return '';
 	}
 
+	private function preparedSignatureField(string $id): string {
+		if (!isset($this->preparedSignatureFields[$id])) throw new LibresignException('The assigned PDF signature slot is unavailable. No signed document was saved.');
+		return $this->preparedSignatureFields[$id];
+	}
+
 	private function hasExistingSignatures(string $pdfContent): bool {
 		return (bool)preg_match('/\/ByteRange\s*\[|\/Type\s*\/Sig\b|\/DocMDP\b|\/Perms\b/', $pdfContent);
 	}
+
+	private function fitSignatureToField(string $signaturePath, float $fieldWidth, float $fieldHeight): string {
+		if (!extension_loaded('imagick') || $fieldWidth <= 0 || $fieldHeight <= 0) {
+			return $signaturePath;
+		}
+
+		$signature = new Imagick($signaturePath);
+		$signature->setImageFormat('png32');
+		$signature->trimImage(0.01);
+		$signature->setImagePage(0, 0, 0, 0);
+
+		$canvasWidth = max(1, (int)round($fieldWidth * 4));
+		$canvasHeight = max(1, (int)round($fieldHeight * 4));
+		$fit = min(
+			$canvasWidth * 0.94 / $signature->getImageWidth(),
+			$canvasHeight * 0.94 / $signature->getImageHeight(),
+		);
+		$signature->resizeImage(
+			max(1, (int)round($signature->getImageWidth() * $fit)),
+			max(1, (int)round($signature->getImageHeight() * $fit)),
+			Imagick::FILTER_LANCZOS,
+			1,
+		);
+
+		$canvas = new Imagick();
+		$canvas->newImage($canvasWidth, $canvasHeight, new ImagickPixel('transparent'));
+		$canvas->setImageFormat('png32');
+		$canvas->compositeImage(
+			$signature,
+			Imagick::COMPOSITE_OVER,
+			(int)round(($canvasWidth - $signature->getImageWidth()) / 2),
+			(int)round(($canvasHeight - $signature->getImageHeight()) / 2),
+		);
+		$output = $this->tempManager->getTemporaryFile('_fitted_signature.png');
+		if (!$output) {
+			throw new \RuntimeException('Temporary signature file not accessible');
+		}
+		$canvas->writeImage($output);
+		$canvas->clear();
+		$signature->clear();
+		return $output;
+	}
+
 
 	private function getScaleFactor(float $width): float {
 		$systemWidth = $this->signatureTextService->getFullSignatureWidth();
@@ -575,12 +716,19 @@ class JSignPdfHandler extends Pkcs12Handler {
 	 * Options with a null value are flags. Every other value reaches the
 	 * wrapper as a string; the wrapper escapes it for the shell.
 	 *
-	 * @param array<string, string|int|float|null> $params
+	 * @param array<string, string|int|float|list<string>|null> $params
 	 * @return array<array-key, string>
 	 */
 	private function toJSignParameters(array $params): array {
 		$parameters = [];
 		foreach ($params as $option => $value) {
+			if (is_array($value)) {
+				foreach ($value as $argument) {
+					$parameters[] = $option;
+					$parameters[] = (string)$argument;
+				}
+				continue;
+			}
 			if ($value === null) {
 				$parameters[] = $option;
 				continue;
@@ -637,13 +785,20 @@ class JSignPdfHandler extends Pkcs12Handler {
 
 	private function signWrapper(JSignPDF $jSignPDF): string {
 		try {
-			return $jSignPDF->sign();
+			return $this->timestampRetryService->run(
+				fn (): string => $jSignPDF->sign(),
+				$this->getTsaSettings()['url'],
+			);
 		} catch (\Throwable $th) {
 			$errorMessage = $th->getMessage();
 
 			// Log before the checks below: they throw, and the original message
 			// from JSignPdf is the only place where the real cause is described.
-			$this->logger->error('Error at JSignPdf side. LibreSign can not do nothing. Follow the error message: ' . $errorMessage);
+			$this->logger->error('JSignPdf signing failed.', ['exception' => $th]);
+
+			if ($th instanceof TemporaryTimestampException) {
+				throw $th;
+			}
 
 			$this->checkTsaError($errorMessage);
 			$this->checkHashAlgorithmError($errorMessage);

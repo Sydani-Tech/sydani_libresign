@@ -79,6 +79,7 @@ class SignFileService {
 	/** @var array<int, VisibleElementAssoc> indexed by fileElementId */
 	private $elements = [];
 	private array $elementsInput = [];
+	private ?\DateTimeImmutable $signingFieldTime = null;
 	private bool $signWithoutPassword = false;
 	private ?string $signatureMethodName = null;
 	private ?File $fileToSign = null;
@@ -134,6 +135,7 @@ class SignFileService {
 		private PolicyService $policyService,
 		private TemporarySignatureImageService $temporarySignatureImageService,
 		private SigningWorkflowStatusResolver $signingWorkflowStatusResolver,
+		private DocumentArchiveService $documentArchive,
 	) {
 	}
 
@@ -297,6 +299,10 @@ class SignFileService {
 
 		foreach ($fileElements as $fileElement) {
 			$fileElementId = $fileElement->getId();
+			if (SigningFieldService::isField($fileElement->getType())) {
+				SigningFieldService::submittedValue($fileElement, $list);
+				continue;
+			}
 			if (!$canCreateSignature) {
 				$newElements[$fileElementId] = new VisibleElementAssoc($fileElement);
 				continue;
@@ -451,6 +457,10 @@ class SignFileService {
 	}
 
 	public function sign(): void {
+		if (isset($this->libreSignFile) && !empty(($this->libreSignFile->getMetadata() ?? [])['letterhead'])) { \OCP\Server::get(LetterheadService::class)->assertRelease($this->libreSignFile); }
+		if (isset($this->libreSignFile) && !empty(($this->libreSignFile->getMetadata() ?? [])['campaign'])) {
+			\OCP\Server::get(CampaignPolicy::class)->assertCanSign($this->libreSignFile);
+		}
 		$signRequests = $this->getSignRequestsToSign();
 
 		if (empty($signRequests)) {
@@ -489,6 +499,10 @@ class SignFileService {
 	}
 
 	public function signSingleFile(FileEntity $libreSignFile, SignRequestEntity $signRequest): void {
+		if (!empty(($libreSignFile->getMetadata() ?? [])['letterhead'])) { \OCP\Server::get(LetterheadService::class)->assertRelease($libreSignFile); }
+		if (!empty(($libreSignFile->getMetadata() ?? [])['campaign'])) {
+			\OCP\Server::get(CampaignPolicy::class)->assertCanSign($libreSignFile);
+		}
 		$previousState = $this->saveCachedState();
 		$this->resetCachedState();
 
@@ -508,6 +522,7 @@ class SignFileService {
 
 			try {
 				$signedFile = $this->getEngine()->sign();
+				$this->assertSigningDateMatchesSignature();
 			} catch (LibresignException|Exception $e) {
 				$this->cleanupUnsignedSignedFile();
 				$this->recordSignatureAttempt($e);
@@ -540,10 +555,12 @@ class SignFileService {
 			'fileToSign' => $this->fileToSign,
 			'createdSignedFile' => $this->createdSignedFile,
 			'engine' => $this->engine,
+			'signingFieldTime' => $this->signingFieldTime,
 		];
 	}
 
 	private function resetCachedState(): void {
+		$this->signingFieldTime = null;
 		$this->fileToSign = null;
 		$this->createdSignedFile = null;
 		$this->engine = null;
@@ -553,6 +570,7 @@ class SignFileService {
 		$this->fileToSign = $state['fileToSign'];
 		$this->createdSignedFile = $state['createdSignedFile'];
 		$this->engine = $state['engine'];
+		$this->signingFieldTime = $state['signingFieldTime'];
 	}
 
 	public function enqueueParallelSigningJobs(array $signRequests, array $jobArguments = []): int {
@@ -649,6 +667,7 @@ class SignFileService {
 			}
 			$this->signRequest = $signRequestData['signRequest'];
 			$this->engine = null;
+			$this->signingFieldTime = null;
 			$this->setVisibleElements($this->elementsInput);
 			$this->fileToSign = null;
 
@@ -660,6 +679,7 @@ class SignFileService {
 					$this->fileToSign?->getOwner(),
 					fn (): File => $engine->sign(),
 				);
+				$this->assertSigningDateMatchesSignature();
 			} catch (LibresignException|Exception $e) {
 				$this->cleanupUnsignedSignedFile();
 				$this->recordSignatureAttempt($e);
@@ -878,7 +898,32 @@ class SignFileService {
 		return hash('sha256', $file->getContent());
 	}
 
+	private function assertSigningDateMatchesSignature(): void {
+		if (!$this->signingFieldTime) return;
+		$automatic = array_filter($this->fileElementMapper->getByFileIdAndSignRequestId($this->signRequest->getFileId(), $this->signRequest->getId()), SigningFieldService::usesSigningDate(...));
+		if (!$automatic) return;
+		$actual = $this->getEngine()->getLastSignedDate();
+		foreach ($automatic as $field) {
+			if (SigningFieldService::signingDate($field, $actual) !== SigningFieldService::signingDate($field, $this->signingFieldTime)) {
+				throw new LibresignException('Signing crossed a date boundary. Please try signing again.');
+			}
+		}
+	}
+
 	protected function updateSignRequest(string $hash): void {
+		$metadata = $this->signRequest->getMetadata() ?? [];
+		$values = [];
+		foreach ($this->fileElementMapper->getByFileIdAndSignRequestId($this->signRequest->getFileId(), $this->signRequest->getId()) as $field) {
+			if (SigningFieldService::isField($field->getType())) {
+				$values[] = ['elementId' => $field->getId(), 'type' => $field->getType(),
+					'label' => SigningFieldService::definition($field->getMetadata() ?? [], $field->getType())['label'],
+					'value' => SigningFieldService::submittedValue($field, $this->elementsInput, $this->signingFieldTime)];
+			}
+		}
+		if ($values) {
+			$metadata['signing_fields'] = $values;
+			$this->signRequest->setMetadata($metadata);
+		}
 		$lastSignedDate = $this->getEngine()->getLastSignedDate();
 		$this->signRequest->setSigned($lastSignedDate);
 		$this->signRequest->setSignedHash($hash);
@@ -924,6 +969,10 @@ class SignFileService {
 	protected function updateLibreSignFile(FileEntity $libreSignFile, int $nodeId, string $hash): void {
 		$libreSignFile->setSignedNodeId($nodeId);
 		$libreSignFile->setSignedHash($hash);
+		$archivedNode = $this->documentArchive->findByNodeId($nodeId);
+		if ($archivedNode) {
+			$this->documentArchive->markArchived($libreSignFile, $archivedNode);
+		}
 		$this->setNewStatusIfNecessary($libreSignFile);
 		$this->fileStatusService->update($libreSignFile);
 
@@ -1039,6 +1088,32 @@ class SignFileService {
 	}
 
 	private function addMetadataToSignatureParams(array $signatureParams): array {
+		$fieldPlan = [];
+		$fileId = $this->libreSignFile?->getId();
+		$fields = $fileId !== null ? $this->fileElementMapper->getByFileId($fileId) : [];
+		foreach ($fields as $field) {
+			if (!SigningFieldService::isField($field->getType())) {
+				continue;
+			}
+			$entry = [
+				'id' => $field->getId(), 'owner' => $field->getSignRequestId(), 'type' => $field->getType(),
+				'page' => $field->getPage(), 'llx' => $field->getLlx(), 'lly' => $field->getLly(),
+				'urx' => $field->getUrx(), 'ury' => $field->getUry(),
+				'metadata' => SigningFieldService::definition($field->getMetadata() ?? [], $field->getType()),
+			];
+			if ($this->signRequest instanceof SignRequestEntity && $field->getSignRequestId() === $this->signRequest->getId()) {
+				if (SigningFieldService::usesSigningDate($field)) {
+					$this->signingFieldTime ??= \DateTimeImmutable::createFromInterface($this->timeFactory->getDateTime());
+				}
+				$entry['value'] = SigningFieldService::submittedValue($field, $this->elementsInput, $this->signingFieldTime);
+			}
+			$fieldPlan[] = $entry;
+		}
+		if ($fieldPlan) {
+			$signatureParams['SigningFields'] = $fieldPlan;
+		}
+		$signatureParams['SignatureFields'] = PdfSignatureFieldPlan::build($fields, $fileId !== null ? $this->signRequestMapper->getByFileId($fileId) : [], $this->signRequest->getId());
+		$signatureParams['InvisibleSignatureField'] = 's' . $this->signRequest->getId();
 		$signRequestMetadata = $this->signRequest->getMetadata();
 		if (isset($signRequestMetadata['remote-address'])) {
 			$signatureParams['SignerIP'] = $signRequestMetadata['remote-address'];
@@ -1142,6 +1217,30 @@ class SignFileService {
 	protected function getFileToSign(): File {
 		if ($this->fileToSign instanceof File) {
 			return $this->fileToSign;
+		}
+		// Continue from the signed master before attempting to locate the source.
+		// The source may have been deleted or replaced after the first signature.
+		if ($this->libreSignFile->getSignedNodeId()) {
+			$this->documentArchive->archiveExisting($this->libreSignFile);
+			return $this->fileToSign = $this->documentArchive->resolve($this->libreSignFile);
+		}
+		// Campaign originals are immutable app-owned snapshots, not Files owned
+		// by the sender. Do not dereference a nonexistent personal-file owner.
+		$letterhead = ($this->libreSignFile->getMetadata() ?? [])['letterhead'] ?? null;
+		if ($letterhead !== null) {
+			\OCP\Server::get(LetterheadService::class)->assertRelease($this->libreSignFile);
+			$originalFile = $this->documentArchive->resolve($this->libreSignFile, false);
+			if (!hash_equals((string)($letterhead['sourceHash'] ?? ''), hash('sha256', $originalFile->getContent()))) throw new LibresignException('The letterheaded PDF no longer matches its approval.');
+			return $this->fileToSign = $this->getPdfToSign($originalFile);
+		}
+		$campaign = ($this->libreSignFile->getMetadata() ?? [])['campaign'] ?? null;
+		if ($campaign !== null) {
+			\OCP\Server::get(CampaignPolicy::class)->assertCanSign($this->libreSignFile);
+			$originalFile = $this->documentArchive->resolve($this->libreSignFile, false);
+			if (!hash_equals((string)($campaign['sourceHash'] ?? ''), hash('sha256', $originalFile->getContent()))) {
+				throw new LibresignException('The campaign source PDF no longer matches the published version.');
+			}
+			return $this->fileToSign = $this->getPdfToSign($originalFile);
 		}
 
 		$userId = $this->libreSignFile->getUserId()
@@ -1448,12 +1547,7 @@ class SignFileService {
 			return null;
 		}
 
-		$fileToSign = $this->getNodeByIdUsingUid($this->libreSignFile->getUserId(), $nodeId);
-
-		if ($fileToSign->getOwner()->getUID() !== $this->libreSignFile->getUserId()) {
-			$fileToSign = $this->getNodeByIdUsingUid($fileToSign->getOwner()->getUID(), $nodeId);
-		}
-		return $fileToSign;
+		return $this->documentArchive->resolve($this->libreSignFile);
 	}
 
 	protected function getNodeByIdUsingUid(string $uid, int $nodeId): File {
@@ -1531,35 +1625,9 @@ class SignFileService {
 	}
 
 	private function createSignedFile(File $originalFile, string $content): File {
-		$filename = preg_replace(
-			'/' . $originalFile->getExtension() . '$/',
-			// TRANSLATORS Filename suffix used when saving the signed document copy. Appears before the original file extension.
-			$this->l10n->t('signed') . '.' . $originalFile->getExtension(),
-			basename($originalFile->getPath())
+		return $this->createdSignedFile = $this->documentArchive->createWorkingCopy(
+			$this->libreSignFile, $originalFile->getExtension(), $content,
 		);
-		$owner = $originalFile->getOwner();
-		$ownerUid = $owner->getUID();
-
-		$fileId = $this->libreSignFile->getId();
-		$extension = $originalFile->getExtension();
-		$uniqueFilename = substr((string)$filename, 0, -strlen($extension) - 1) . '_' . $fileId . '.' . $extension;
-
-		try {
-			/** @var \OCP\Files\Folder */
-			$parentFolder = $this->root->getUserFolder($ownerUid)->getFirstNodeById($originalFile->getParentId());
-
-			$this->createdSignedFile = $this->runWithVolatileActiveUser(
-				$owner,
-				fn (): File => $parentFolder->newFile($uniqueFilename, $content),
-			);
-
-			return $this->createdSignedFile;
-		} catch (NotPermittedException) {
-			// TRANSLATORS Permission error shown when the current user cannot perform the requested signing action.
-			throw new LibresignException($this->l10n->t('You do not have permission for this action.'));
-		} catch (\Exception $e) {
-			throw $e;
-		}
 	}
 
 	/**
@@ -1596,7 +1664,7 @@ class SignFileService {
 			$children = $this->fileMapper->getChildrenFiles($fileData->getId());
 			$files = [];
 			foreach ($children as $child) {
-				$nodeId = $child->getNodeId();
+				$nodeId = $child->getSignedNodeId() ?: $child->getNodeId();
 				if ($nodeId === null) {
 					throw new LibresignException(json_encode([
 						'action' => JSActions::ACTION_DO_NOTHING,
@@ -1604,7 +1672,7 @@ class SignFileService {
 						'errors' => [['message' => $this->l10n->t('File not found')]],
 					]), AppFrameworkHttp::STATUS_NOT_FOUND);
 				}
-				$file = $this->root->getUserFolder($child->getUserId())->getFirstNodeById($nodeId);
+				$file = $this->documentArchive->resolve($child);
 				if ($file instanceof File) {
 					$files[] = $file;
 				}
@@ -1612,7 +1680,7 @@ class SignFileService {
 			return $files;
 		}
 
-		$nodeId = $fileData->getNodeId();
+		$nodeId = $fileData->getSignedNodeId() ?: $fileData->getNodeId();
 		if ($nodeId === null) {
 			throw new LibresignException(json_encode([
 				'action' => JSActions::ACTION_DO_NOTHING,
@@ -1620,9 +1688,7 @@ class SignFileService {
 				'errors' => [['message' => $this->l10n->t('File not found')]],
 			]), AppFrameworkHttp::STATUS_NOT_FOUND);
 		}
-		$storageUserId = $this->fileMapper->getStorageUserIdByUuid($fileData->getUuid());
-		$this->folderService->setUserId($storageUserId);
-		$fileToSign = $this->folderService->getFileByNodeId($nodeId);
+		$fileToSign = $this->documentArchive->resolve($fileData);
 		if (!$fileToSign instanceof File) {
 			throw new LibresignException(json_encode([
 				'action' => JSActions::ACTION_DO_NOTHING,

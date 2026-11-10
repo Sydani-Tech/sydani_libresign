@@ -16,6 +16,7 @@ const {
 	getCurrentUserMock: vi.fn(),
 	selectFileMock: vi.fn(),
 }))
+vi.mock('../../../services/campaigns', () => ({ campaignGet: vi.fn().mockResolvedValue({canCreate: false}) }))
 
 vi.mock('@nextcloud/initial-state', () => ({
 	loadState: (app: string, key: string, fallback: unknown) => loadStateMock(app, key, fallback),
@@ -79,7 +80,7 @@ describe('LeftSidebar', () => {
 		})
 
 		const icons = wrapper.findAll('.menu-icon')
-		expect(icons).toHaveLength(4)
+		expect(icons).toHaveLength(6)
 		for (const icon of icons) {
 			expect(icon.attributes('data-path')).toBeTruthy()
 		}

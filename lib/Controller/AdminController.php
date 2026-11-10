@@ -470,4 +470,18 @@ class AdminController extends AEnvironmentAwareController {
 			], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
+	/**
+	 * Allow every authenticated Nextcloud user to create signing requests, regardless of group.
+	 * Anonymous users remain excluded by the request-sign middleware.
+	 *
+	 * @param bool $enabled Whether every authenticated user can request signatures
+	 * @return DataResponse<Http::STATUS_OK, array{message: string}, array{}>
+	 * 200: Settings saved
+	 */
+	#[ApiRoute(verb: 'POST', url: '/api/{apiVersion}/admin/all-signed-in-request-sign/config', requirements: ['apiVersion' => '(v1)'])]
+	public function setAllSignedInRequestSignConfig(bool $enabled): DataResponse {
+		$this->appConfig->setValueBool(Application::APP_ID, 'allow_all_signed_in_request_sign', $enabled);
+		return new DataResponse(['message' => $this->l10n->t('Settings saved')]);
+	}
+
 }

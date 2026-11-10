@@ -59,6 +59,7 @@ class FileListService {
 		private IUserManager $userManager,
 		private IRootFolder $root,
 		private SignatureRejectionVisibilityService $signatureRejectionVisibilityService,
+		private \OCA\Libresign\Service\DocumentArchiveService $documentArchive,
 	) {
 	}
 
@@ -72,6 +73,7 @@ class FileListService {
 		array $filter = [],
 		array $sort = [],
 		bool $details = false,
+		bool $includeSenders = false,
 	): array {
 		$page ??= 1;
 		$length ??= (int)$this->appConfig->getValueInt(Application::APP_ID, 'length_of_page', 100);
@@ -97,6 +99,7 @@ class FileListService {
 		return [
 			'data' => $return['data'],
 			'pagination' => $return['pagination']->getPagination($page, $length, $filter),
+			...($includeSenders ? ['senders' => $this->signRequestMapper->getAssociatedSenders($user)] : []),
 		];
 	}
 
@@ -242,7 +245,7 @@ class FileListService {
 	): array {
 		$file = [
 			'id' => $fileEntity->getId(),
-			'nodeId' => $fileEntity->getNodeId(),
+			'nodeId' => $fileEntity->getDisplayNodeId(),
 			'uuid' => $fileEntity->getUuid(),
 			'name' => $fileEntity->getName(),
 			'status' => $fileEntity->getStatus(),
@@ -354,7 +357,7 @@ class FileListService {
 		/** @var LibresignFileSummary */
 		return [
 			'id' => $fileEntity->getId(),
-			'nodeId' => $fileEntity->getNodeId(),
+			'nodeId' => $fileEntity->getDisplayNodeId(),
 			'uuid' => $fileEntity->getUuid(),
 			'name' => $fileEntity->getName(),
 			'status' => $fileEntity->getStatus(),
@@ -718,7 +721,7 @@ class FileListService {
 			// TRANSLATORS Success message shown after a LibreSign file action completes successfully.
 			'message' => $this->l10n->t('Success'),
 			'id' => $mainEntity->getId(),
-			'nodeId' => $mainEntity->getNodeId(),
+			'nodeId' => $mainEntity->getDisplayNodeId(),
 			'uuid' => $mainEntity->getUuid(),
 			'name' => $mainEntity->getName(),
 			'status' => $mainEntity->getStatus(),
@@ -977,7 +980,7 @@ class FileListService {
 			return [
 				'fileId' => $file->getId(),
 				'id' => $file->getId(),
-				'nodeId' => $file->getNodeId(),
+				'nodeId' => $file->getDisplayNodeId(),
 				'uuid' => $file->getUuid(),
 				'name' => $file->getName(),
 				'status' => $file->getStatus(),
@@ -998,7 +1001,7 @@ class FileListService {
 			return 0;
 		}
 		try {
-			$fileNode = $this->root->getUserFolder($file->getUserId())->getFirstNodeById($nodeId);
+			$fileNode = $this->documentArchive->resolve($file);
 			if ($fileNode instanceof NodeFile && method_exists($fileNode, 'getSize')) {
 				return max(0, (int)$fileNode->getSize());
 			}

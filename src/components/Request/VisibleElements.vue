@@ -32,7 +32,23 @@
 						:text="selectSignerPositionHint" />
 				</p>
 				<ul class="view-sign-detail__sidebar">
-					<li v-if="signerSelected"
+					<li class="field-palette">
+						<label for="field-recipient">{{ t('libresign', 'Assign fields to') }}</label>
+						<select id="field-recipient" v-model="selectedSignerIndex">
+							<option v-for="(signer, index) in pdfEditorSigners" :key="signer.signRequestId" :value="index">{{ signer.displayName || signer.email }}</option>
+						</select>
+						<p class="field-palette__desktop-hint">{{ t('libresign', 'Drag a field onto the document, or click a field and then click its position.') }}</p>
+						<p class="field-palette__mobile-hint">{{ t('libresign', 'Choose a field, then tap the document. Drag to move; use the corners to resize.') }}</p>
+						<p class="field-palette__date-help">{{ t('libresign', 'For an automatic WAT signing date, place a Date field, select it, then tick Use signing date. This setting is separate from Required.') }}</p>
+						<div class="field-palette__buttons">
+							<button v-for="field in palette" :key="field.type" type="button" draggable="true"
+								:disabled="!canSave || loading" :aria-pressed="selectedFieldType === field.type" :class="{ 'field-palette__button--active': selectedFieldType === field.type }"
+								@click="addField(field.type)" @dragstart="dragField($event, field.type)">
+								<span aria-hidden="true">{{ field.icon }}</span> {{ field.label }}
+							</button>
+						</div>
+					</li>
+					<li v-if="signerSelected" role="status" aria-live="polite"
 						:class="{ tip: signerSelected }">
 						<span>{{ clickPlacementHint }}</span>
 						<NcButton variant="primary"
@@ -44,7 +60,7 @@
 						:key="index"
 						:signer="signer"
 						:require-request-permission="false"
-						:class="{ disabled: signerSelected }"
+						class="field-palette__signer" :class="{ disabled: signerSelected }"
 						@select="handleSignerSelect">
 						<template #actions>
 							<slot name="actions" v-bind="{ signer }" />
@@ -55,12 +71,12 @@
 					<NcButton v-if="canSave"
 						:variant="variantOfSaveButton"
 						:wide="true"
-						:class="{ disabled: signerSelected }"
+						:disabled="loading || !!signerSelected"
 						@click="save()">
 						{{ saveLabel }}
 					</NcButton>
 
-					<NcButton v-if="canSign && !signerSelected"
+					<NcButton v-if="allowSign && canSign && !signerSelected"
 						:variant="variantOfSignButton"
 						:wide="true"
 						@click="goToSign">
@@ -95,7 +111,7 @@ import NcChip from '@nextcloud/vue/components/NcChip'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
-import { computed, getCurrentInstance, nextTick, onBeforeUnmount, onMounted, ref, type ComponentPublicInstance } from 'vue'
+import { computed, getCurrentInstance, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue'
 
 import PdfEditor from '../PdfEditor/PdfEditor.vue'
 import Signer from '../Signers/Signer.vue'
@@ -103,6 +119,8 @@ import Signer from '../Signers/Signer.vue'
 import { FILE_STATUS } from '../../constants.js'
 import { getSigningRouteUuid } from '../../utils/signRequestUuid.ts'
 import { useFilesStore } from '../../store/files.js'
+import { isSigningField } from '../../store/signingFields'
+import { normalizeVisibleElements } from '../../services/normalizeVisibleElements'
 import {
 	aggregateVisibleElementsByFiles,
 	findFileById,
@@ -129,7 +147,8 @@ type EditableRequestChildFile = NonNullable<NonNullable<EditableRequestFile['fil
 type EditableRequestSigner = NonNullable<NonNullable<EditableRequestFile['signers']>[number]>
 
 type EditableVisibleElementPayload = Omit<RequestSignatureVisibleElementPayload, 'type' | 'elementId'> & {
-	type: 'signature'
+	type: string
+	metadata?: { label?: string, required?: boolean }
 	elementId?: RequestSignatureVisibleElementPayload['elementId']
 }
 
@@ -153,6 +172,7 @@ type PdfObject = {
 	visibleElement?: VisibleElementRecord | null
 	documentIndex?: number
 	pageNumber: number
+	metadata?: { label?: string, required?: boolean }
 }
 
 type PdfElementsRef = {
@@ -168,7 +188,7 @@ type PdfElementsRef = {
 
 type PdfEditorRef = ComponentPublicInstance & {
 	$refs?: { pdfElements?: PdfElementsRef }
-	startAddingSigner?: (signer: SignerSummaryRecord | null | undefined, size: { width?: number, height?: number }) => boolean
+	startAddingSigner?: (signer: SignerSummaryRecord | null | undefined, size: { width?: number, height?: number, type?: string }) => boolean
 	cancelAdding?: () => void
 	addSigner?: (signer: SignerSummaryRecord, visibleElement: VisibleElementRecord, options?: { documentIndex?: number }) => Promise<void>
 }
@@ -199,7 +219,7 @@ function isIdentifyMethodRecord(value: unknown): value is IdentifyMethodRecord {
 function normalizeVisibleElement(element: unknown): VisibleElementRecord | null {
 	const candidate = toRecord(element)
 	const coordinates = toRecord(candidate?.coordinates)
-	if (!candidate || !coordinates || candidate.type !== 'signature') {
+	if (!candidate || !coordinates || !['signature', 'initial', 'text', 'date', 'checkbox'].includes(String(candidate.type))) {
 		return null
 	}
 
@@ -221,7 +241,8 @@ function normalizeVisibleElement(element: unknown): VisibleElementRecord | null 
 	}
 
 	return {
-		type: 'signature',
+		type: String(candidate.type),
+		...(toRecord(candidate.metadata) ? { metadata: toRecord(candidate.metadata) as VisibleElementRecord['metadata'] } : {}),
 		elementId,
 		fileId,
 		signRequestId,
@@ -410,53 +431,8 @@ function toVisibleElementsDocument(document: EditableRequestFile): DocumentLike 
 	}
 }
 
-const normalizeVisibleElements = (elements: VisibleElementRecord[]): VisibleElementRecord[] =>
-	elements.flatMap((element) => {
-		if (element.type !== 'signature') {
-			return []
-		}
 
-		if (!element.coordinates) {
-			return []
-		}
-
-		const page = Number(element.coordinates.page)
-		const left = Number(element.coordinates.left)
-		const top = Number(element.coordinates.top)
-		const normalizedFileId = Number(element.fileId)
-		const normalizedSignRequestId = Number(element.signRequestId)
-		const normalizedElementId = Number(element.elementId)
-		const rawWidth = element.coordinates.width
-		const rawHeight = element.coordinates.height
-		const width = rawWidth === undefined ? undefined : Number(rawWidth)
-		const height = rawHeight === undefined ? undefined : Number(rawHeight)
-
-		if (![page, left, top].every(Number.isFinite)) {
-			return []
-		}
-
-		if (!Number.isFinite(normalizedFileId) || !Number.isFinite(normalizedSignRequestId) || !Number.isFinite(normalizedElementId)) {
-			return []
-		}
-
-		if ((width !== undefined && !Number.isFinite(width)) || (height !== undefined && !Number.isFinite(height))) {
-			return []
-		}
-
-		return [{
-			type: 'signature',
-			elementId: normalizedElementId,
-			fileId: normalizedFileId,
-			signRequestId: normalizedSignRequestId,
-			coordinates: {
-				page,
-				left,
-				top,
-				...(width !== undefined ? { width } : {}),
-				...(height !== undefined ? { height } : {}),
-			},
-		} satisfies VisibleElementRecord]
-	})
+withDefaults(defineProps<{allowSign?:boolean}>(), {allowSign:true})
 
 const filesStore = useFilesStore() as FilesStore
 const instance = getCurrentInstance()
@@ -465,6 +441,30 @@ const canRequestSign = ref(loadState('libresign', 'can_request_sign', false))
 const modal = ref(false)
 const loading = ref(false)
 const signerSelected = ref<SignerSummaryRecord | null>(null)
+const selectedFieldType = ref<string | null>(null)
+const selectedSignerIndex = ref(0)
+watch(selectedSignerIndex, () => stopAddSigner())
+const palette = [
+	{ type: 'signature', icon: '✎', label: t('libresign', 'Signature') },
+	{ type: 'text', icon: 'T', label: t('libresign', 'Text') },
+	{ type: 'date', icon: '▦', label: t('libresign', 'Date') },
+	{ type: 'checkbox', icon: '☑', label: t('libresign', 'Checkbox') },
+]
+function addField(type: string) {
+	const signer = pdfEditorSigners.value[selectedSignerIndex.value]
+	if (!signer || !canSave.value) return
+	const sizes: Record<string, [number, number]> = { text: [180, 32], date: [120, 32], checkbox: [24, 24], signature: [180, 64] }
+	if (!sizes[type]) return
+	const [width, height] = sizes[type]
+	const started = getPdfEditor()?.startAddingSigner?.(signer, { width, height, type })
+	signerSelected.value = started ? signer : null
+	selectedFieldType.value = started ? type : null
+}
+function dragField(event: DragEvent, type: string) {
+	addField(type)
+	event.dataTransfer?.setData('application/x-libresign-field', type)
+	if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
+}
 const capabilities = getCapabilities() as LibresignCapabilities
 const signElementsConfig = capabilities.libresign?.config['sign-elements']
 const width = ref(Number(signElementsConfig?.['full-signature-width']))
@@ -556,8 +556,11 @@ const status = computed(() => Number(document.value.status))
 const isDraft = computed(() => status.value === FILE_STATUS.DRAFT)
 const signElementsAvailable = computed(() => signElementsConfig?.['is-available'] !== false)
 const hasVisibleElements = computed(() => getVisibleElementsFromDocument(document.value as DocumentLike).length > 0)
+const hasSigningFields = computed(() => getVisibleElementsFromDocument(document.value as DocumentLike)
+	.some(element => isSigningField(element.type)))
 const canSave = computed(() => signElementsAvailable.value
-	&& ([FILE_STATUS.DRAFT, FILE_STATUS.ABLE_TO_SIGN, FILE_STATUS.PARTIAL_SIGNED] as number[]).includes(status.value))
+	&& ([FILE_STATUS.DRAFT, FILE_STATUS.ABLE_TO_SIGN, FILE_STATUS.PARTIAL_SIGNED] as number[]).includes(status.value)
+	&& !(status.value === FILE_STATUS.PARTIAL_SIGNED && hasSigningFields.value))
 const canSign = computed(() => status.value === FILE_STATUS.ABLE_TO_SIGN && !!getSigningRouteUuid(document.value))
 const variantOfSaveButton = computed(() => canSave.value ? 'primary' : 'secondary')
 const variantOfSignButton = computed(() => canSave.value ? 'secondary' : 'primary')
@@ -823,12 +826,14 @@ function onSelectSigner(signer: SignerSummaryRecord) {
 		return
 	}
 	signerSelected.value = signer
+	selectedFieldType.value = 'signature'
 	const started = pdfEditorRef.startAddingSigner?.(signerSelected.value, {
 		width: width.value,
 		height: height.value,
 	})
 	if (!started) {
 		signerSelected.value = null
+		selectedFieldType.value = null
 	}
 	if (!started) {
 		return
@@ -854,6 +859,7 @@ function handleAddingEnded() {
 function stopAddSigner() {
 	getPdfEditor()?.cancelAdding?.()
 	signerSelected.value = null
+	selectedFieldType.value = null
 }
 
 async function onDeleteSigner(visibleElement: VisibleElementRecord) {
@@ -892,6 +898,11 @@ async function save() {
 
 	try {
 		const response = await filesStore.saveOrUpdateSignatureRequest({ visibleElements })
+		if ('success' in response && response.success === false) {
+			showError(response.message || t('libresign', 'An error occurred'))
+			loading.value = false
+			return false
+		}
 		const successMessage = typeof response.message === 'string' && response.message.length > 0
 			? response.message
 			: t('libresign', 'Settings saved')
@@ -1053,7 +1064,8 @@ function buildVisibleElements() {
 			}
 
 			visibleElements.push({
-				type: 'signature',
+				type: object.type || 'signature',
+				metadata: object.metadata ?? object.visibleElement?.metadata,
 				fileId: targetFileId,
 				signRequestId,
 				...(object.visibleElement?.elementId !== undefined ? { elementId: object.visibleElement.elementId } : {}),
@@ -1100,6 +1112,8 @@ defineExpose({
 	statusLabel,
 	isDraft,
 	getPdfElements,
+	addField,
+	selectedFieldType,
 	showModal,
 	fetchFiles,
 	aggregateVisibleElementsByFiles,
@@ -1117,11 +1131,30 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+.field-palette__date-help { font-size:12px; line-height:1.5; margin:8px 0; color:var(--color-text-maxcontrast); }
+.field-palette {
+	display: grid;
+	gap: 10px;
+	padding: 12px 0;
+	select { width: 100%; }
+	&__mobile-hint { display: none; }
+	&__buttons {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+		button { text-align: start; cursor: grab; min-height: 44px; }
+		span { display: inline-block; min-width: 24px; color: var(--color-primary-element); }
+		.field-palette__button--active { background: var(--color-primary-element); color: var(--color-primary-element-text); span { color: inherit; } }
+	}
+}
 .visible-elements-container {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
 	width: 100%;
+	min-height: 0;
+	overflow: hidden;
+	> .pdf-editor { flex: 1 1 0; min-width: 0; min-height: 0; height: auto; }
 
 	@media (min-width: 768px) {
 		flex-direction: row;
@@ -1156,8 +1189,10 @@ defineExpose({
 		overflow-x: hidden;
 
 		@media (max-width: 767px) {
-			max-height: 30vh;
-			min-height: 200px;
+			flex: 0 0 auto;
+			max-height: none;
+			min-height: 0;
+			overflow: visible;
 		}
 
 		@media (min-width: 768px) {
@@ -1204,6 +1239,32 @@ defineExpose({
 			white-space: nowrap;
 			border: 0;
 		}
+	}
+}
+
+@media (max-width: 767px) {
+	.visible-elements-container {
+		.modal_name { margin-bottom: 4px; .name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
+		.sign-details { padding: 6px 10px; }
+		.view-sign-detail__sidebar { margin: 0; padding: 0; }
+		.field-palette { gap: 4px; padding: 0; margin: 0; }
+		.field-palette > label { font-size: 12px; }
+		.field-palette select { min-height: 36px; height: 36px; margin: 0; }
+		.field-palette__desktop-hint, .field-palette__signer { display: none; }
+		.field-palette__mobile-hint { display: block; font-size: 12px; line-height: 1.35; margin: 2px 0; }
+		.field-palette__buttons {
+			grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px;
+			button { padding: 6px 2px; text-align: center; min-width: 0; font-size: 12px; cursor: pointer; white-space: normal; }
+			span { min-width: 0; display: block; font-size: 16px; }
+		}
+		.sign-details__actions { position: static; display: flex; gap: 6px; padding-top: 4px; > * { flex: 1; min-width: 0; margin: 0; } }
+		.sign-details .tip { flex-direction: row; justify-content: space-between; gap: 4px; padding: 4px; margin: 4px 0 0; font-size: 12px; }
+	}
+}
+@media (max-width: 767px) and (max-height: 500px) {
+	.visible-elements-container {
+		.modal_name, .field-palette__mobile-hint, .field-palette > label { display: none; }
+		.field-palette__buttons span { display: inline; font-size: 14px; }
 	}
 }
 </style>

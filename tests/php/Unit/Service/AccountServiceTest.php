@@ -25,6 +25,7 @@ use OCA\Libresign\Helper\FileUploadHelper;
 use OCA\Libresign\Helper\ValidateHelper;
 use OCA\Libresign\Service\AccountService;
 use OCA\Libresign\Service\Crl\CrlService;
+use OCA\Libresign\Service\DocumentArchiveService;
 use OCA\Libresign\Service\FolderService;
 use OCA\Libresign\Service\IdDocsPolicyService;
 use OCA\Libresign\Service\IdDocsService;
@@ -94,6 +95,7 @@ final class AccountServiceTest extends \OCA\Libresign\Tests\Unit\TestCase {
 	private SignerElementsService&MockObject $signerElementsService;
 	private UserElementMapper&MockObject $userElementMapper;
 	private FolderService&MockObject $folderService;
+	private DocumentArchiveService&MockObject $documentArchive;
 	private ClientService&MockObject $clientService;
 	private TimeFactory&MockObject $timeFactory;
 	private RequestSignatureService&MockObject $requestSignatureService;
@@ -137,6 +139,7 @@ final class AccountServiceTest extends \OCA\Libresign\Tests\Unit\TestCase {
 		$this->signerElementsService = $this->createMock(SignerElementsService::class);
 		$this->userElementMapper = $this->createMock(UserElementMapper::class);
 		$this->folderService = $this->createMock(FolderService::class);
+		$this->documentArchive = $this->createMock(DocumentArchiveService::class);
 		$this->clientService = $this->createMock(ClientService::class);
 		$this->timeFactory = $this->createMock(TimeFactory::class);
 		$this->uploadHelper = $this->createMock(FileUploadHelper::class);
@@ -178,7 +181,45 @@ final class AccountServiceTest extends \OCA\Libresign\Tests\Unit\TestCase {
 			$this->uploadHelper,
 			$this->crlService,
 			$this->requestSignAuthorizationService,
+			$this->documentArchive,
 		);
+	}
+
+	public static function provideCampaignPdfLookupStatuses(): array {
+		return [[1, false], [2, true], [3, true]];
+	}
+
+	#[DataProvider('provideCampaignPdfLookupStatuses')]
+	public function testGetPdfByUuidResolvesCampaignSnapshot(int $status, bool $preferSigned): void {
+		$file = new \OCA\Libresign\Db\File();
+		$file->setStatus($status);
+		$file->setMetadata(['campaign' => ['id' => 1]]);
+		$this->fileMapper->method('getByUuid')->with('campaign-file')->willReturn($file);
+		$pdf = $this->createMock(File::class);
+		$this->documentArchive->expects($this->once())->method('resolve')->with($file, $preferSigned)->willReturn($pdf);
+		$this->folderService->expects($this->never())->method('getFileByNodeId');
+		$this->assertSame($pdf, $this->getService()->getPdfByUuid('campaign-file'));
+	}
+
+	public function testGetPdfByUuidResolvesCampaignMissingSnapshotAsNotFound(): void {
+		$file = new \OCA\Libresign\Db\File();
+		$file->setStatus(1);
+		$file->setMetadata(['campaign' => ['id' => 1]]);
+		$this->fileMapper->method('getByUuid')->willReturn($file);
+		$this->documentArchive->method('resolve')->willThrowException(new NotFoundException());
+		$this->folderService->expects($this->never())->method('getFileByNodeId');
+		$this->expectException(DoesNotExistException::class);
+		$this->getService()->getPdfByUuid('campaign-file');
+	}
+
+	public function testGetPdfByUuidResolvesCampaignRefusesExternallySignedFlag(): void {
+		$file = new \OCA\Libresign\Db\File();
+		$file->setExternallySigned(1);
+		$file->setMetadata(['campaign' => ['id' => 1]]);
+		$this->fileMapper->method('getByUuid')->willReturn($file);
+		$this->documentArchive->expects($this->never())->method('resolve');
+		$this->expectException(DoesNotExistException::class);
+		$this->getService()->getPdfByUuid('campaign-file');
 	}
 
 	#[DataProvider('provideUuidLookupSequences')]
@@ -600,6 +641,19 @@ final class AccountServiceTest extends \OCA\Libresign\Tests\Unit\TestCase {
 
 		$actual = $this->getService()->canRequestSign();
 		$this->assertFalse($actual);
+	}
+
+	public function testCanRequestSignForAnySignedInUserWhenEnabled(): void {
+		$this->appConfig
+			->method('getValueBool')
+			->with(Application::APP_ID, 'allow_all_signed_in_request_sign', true)
+			->willReturn(true);
+		$this->groupManager
+			->expects($this->never())
+			->method('getUserGroupIds');
+		$user = $this->createMock(IUser::class);
+		$this->assertTrue($this->getService()->canRequestSign($user));
+		$this->assertFalse($this->getService()->canRequestSign());
 	}
 
 	public function testCanRequestSignWithoutGroups():void {

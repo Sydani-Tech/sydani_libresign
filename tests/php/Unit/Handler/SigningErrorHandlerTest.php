@@ -45,6 +45,18 @@ class SigningErrorHandlerTest extends TestCase {
 		);
 	}
 
+	public function testTemporaryTimestampFailureHasARetryableMessageWithoutTechnicalDetails(): void {
+		$exception = new \OCA\Libresign\Exception\TemporaryTimestampException(new \RuntimeException('private TSA diagnostics'));
+		$result = $this->handler->handleException($exception);
+		$this->assertSame(JSActions::ACTION_DO_NOTHING, $result['action']);
+		$this->assertSame(503, $result['errors'][0]['code']);
+		$this->assertSame('Timestamp service temporarily unavailable', $result['errors'][0]['title']);
+		$this->assertStringContainsString('Please wait a moment and try again', $result['errors'][0]['message']);
+		$this->assertStringContainsString('No signed document was saved', $result['errors'][0]['message']);
+		$this->assertStringNotContainsString('private TSA diagnostics', json_encode($result));
+		$this->assertStringNotContainsString('Internal Server Error', json_encode($result));
+	}
+
 	public static function libresignExceptionProvider(): array {
 		return [
 			'code 400 triggers password creation action' => [

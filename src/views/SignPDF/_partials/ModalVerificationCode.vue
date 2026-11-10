@@ -86,6 +86,15 @@
 			</div>
 		</div>
 
+		<NcNoteCard v-for="(error, index) in temporarySigningErrors"
+			:key="index"
+			class="temporary-signing-error"
+			type="warning"
+			:heading="error.title || t('libresign', 'Timestamp service temporarily unavailable')"
+			role="alert">
+			{{ error.message }}
+		</NcNoteCard>
+
 		<template #actions>
 			<!-- Step 1 action (common button, mode-specific disabled logic) -->
 			<NcButton v-if="step1Active"
@@ -155,6 +164,7 @@ import { generateOcsUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import NcIconSvgWrapper from '@nextcloud/vue/components/NcIconSvgWrapper'
 
@@ -223,7 +233,7 @@ type SignStore = {
 		signers?: Array<{ me?: boolean; sign_request_uuid?: string }>
 		settings?: { isApprover?: boolean } | null
 	}
-	errors?: Array<{ message?: string }>
+	errors?: Array<{ message?: string, title?: string, code?: number | string }>
 	buildRequestCodeUrl: (signRequestUuid: string) => string
 }
 
@@ -329,6 +339,8 @@ watch(token, (newToken) => {
 		signMethodsStore.setEmailToken(newToken)
 	}
 })
+
+const temporarySigningErrors = computed(() => (signStore.errors || []).filter(error => Number(error.code) === 503))
 
 watch(() => signStore.errors, (errors) => {
 	if (errors && errors.length > 0 && loading.value) {

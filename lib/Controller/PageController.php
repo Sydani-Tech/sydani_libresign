@@ -13,6 +13,7 @@ use OCA\Libresign\Db\FileMapper;
 use OCA\Libresign\Db\SignRequestMapper;
 use OCA\Libresign\Exception\LibresignException;
 use OCA\Libresign\Handler\CertificateEngine\CertificateEngineFactory;
+use OCA\Libresign\Helper\FrontendAssets;
 use OCA\Libresign\Helper\JSActions;
 use OCA\Libresign\Helper\ValidateHelper;
 use OCA\Libresign\Middleware\Attribute\PrivateValidation;
@@ -51,7 +52,6 @@ use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
-use OCP\Util;
 use Psr\Log\LoggerInterface;
 
 #[OpenAPI(scope: OpenAPI::SCOPE_IGNORE)]
@@ -118,8 +118,8 @@ class PageController extends AEnvironmentPageAwareController {
 			'policies' => $this->policyService->resolveKnownPolicyStates(),
 		]);
 
-		Util::addScript(Application::APP_ID, 'libresign-main');
-		Util::addStyle(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-main');
 
 		if (class_exists(LoadViewer::class)) {
 			$this->eventDispatcher->dispatchTyped(new LoadViewer());
@@ -196,8 +196,8 @@ class PageController extends AEnvironmentPageAwareController {
 	}
 
 	private function renderIncompletePage(bool $publicPage = false): TemplateResponse {
-		Util::addScript(Application::APP_ID, 'libresign-main');
-		Util::addStyle(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-main');
 
 		if ($publicPage) {
 			return new TemplateResponse(Application::APP_ID, 'main', [], TemplateResponse::RENDER_AS_BASE);
@@ -418,11 +418,11 @@ class PageController extends AEnvironmentPageAwareController {
 			$this->initialState->provideInitialState('pdfs', $this->getPdfUrls());
 			$this->initialState->provideInitialState('envelopeFiles', []);
 		}
-		$this->initialState->provideInitialState('nodeId', $this->getFileEntity()->getNodeId());
+		$this->initialState->provideInitialState('nodeId', $this->getFileEntity()->getDisplayNodeId());
 		$this->initialState->provideInitialState('nodeType', $this->getFileEntity()->getNodeType());
 
-		Util::addScript(Application::APP_ID, 'libresign-external');
-		Util::addStyle(Application::APP_ID, 'libresign-external');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-external');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-external');
 		if (class_exists(LoadViewer::class)) {
 			$this->eventDispatcher->dispatchTyped(new LoadViewer());
 		}
@@ -490,7 +490,8 @@ class PageController extends AEnvironmentPageAwareController {
 	 * Use UUID of file to get PDF
 	 *
 	 * @param string $uuid File uuid
-	 * @return FileDisplayResponse<Http::STATUS_OK, array{Content-Type: string}>|DataResponse<Http::STATUS_NOT_FOUND, array<empty>, array{}>
+	 * @param bool $download Download the original PDF as an attachment
+	 * @return FileDisplayResponse<Http::STATUS_OK, array{Content-Type: string, Content-Disposition?: string, Cache-Control?: string, X-Content-Type-Options?: string}>|DataResponse<Http::STATUS_NOT_FOUND, array<empty>, array{}>
 	 *
 	 * 200: OK
 	 * 401: Validation page not accessible if unauthenticated
@@ -503,14 +504,21 @@ class PageController extends AEnvironmentPageAwareController {
 	#[PublicPage]
 	#[AnonRateLimit(limit: 300, period: 60)]
 	#[FrontpageRoute(verb: 'GET', url: '/p/pdf/{uuid}')]
-	public function getPdf($uuid) {
+	public function getPdf($uuid, bool $download = false) {
 		try {
 			$file = $this->accountService->getPdfByUuid($uuid);
 		} catch (DoesNotExistException) {
 			return new DataResponse([], Http::STATUS_NOT_FOUND);
 		}
 
-		return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $file->getMimeType()]);
+		$response = new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $file->getMimeType()]);
+		if ($download) {
+			$filename = preg_replace('/[\r\n\x00-\x1f]/', '', basename($file->getName()));
+			$response->addHeader('Content-Disposition', "attachment; filename*=UTF-8''" . rawurlencode($filename));
+			$response->addHeader('Cache-Control', 'private, no-store');
+			$response->addHeader('X-Content-Type-Options', 'nosniff');
+		}
+		return $response;
 	}
 
 	/**
@@ -625,8 +633,8 @@ class PageController extends AEnvironmentPageAwareController {
 			$this->accountService->getConfig($this->userSession->getUser())
 		);
 
-		Util::addScript(Application::APP_ID, 'libresign-main');
-		Util::addStyle(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-main');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-main');
 		$response = new TemplateResponse(Application::APP_ID, 'reset_password');
 
 		return $response;
@@ -709,8 +717,8 @@ class PageController extends AEnvironmentPageAwareController {
 	 * Register the same scripts and styles on all public validation routes.
 	 */
 	private function registerValidationAssets(): void {
-		Util::addScript(Application::APP_ID, 'libresign-validation');
-		Util::addStyle(Application::APP_ID, 'libresign-validation');
+		FrontendAssets::addScript(Application::APP_ID, 'libresign-validation');
+		FrontendAssets::addStyle(Application::APP_ID, 'libresign-validation');
 	}
 
 	/**

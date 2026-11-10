@@ -107,6 +107,7 @@ namespace OCA\Libresign;
  *     fileId: int,
  *     type: string,
  *     coordinates: LibresignCoordinate,
+ *     metadata?: array{label?: string, required?: bool, useSigningDate?: bool, signingDateTimezone?: string},
  * }
  * @psalm-type LibresignSignatureMethod = array{
  *     enabled: bool,
@@ -736,6 +737,7 @@ namespace OCA\Libresign;
  *     message: string,
  * }
  * @psalm-type LibresignFileListResponse = array{
+ *     senders?: list<array{id: string, name: string}>,
  *     pagination: LibresignPagination,
  *     data: list<LibresignFileSummary|LibresignDetailedFile>,
  *     settings?: LibresignSettings,

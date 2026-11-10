@@ -58,6 +58,29 @@ describe('SignerDetails.vue - Business Logic', () => {
 		wrapper = createWrapper()
 	})
 
+	describe('independently verified validation evidence', () => {
+		it('explains LT evidence without warning that signed content changed and preserves revision details', async () => {
+			wrapper = createWrapper({initiallyOpen: true, signer: {signed:'2026-11-09T03:34:38Z', signature_validation:{id:1}, certificate_validation:{id:1}, document_modification_state:'unsigned_content',docmdp:{label:'No certification',isCertifying:false},modification_validation:{valid:true,status:2,source:'dss-pdf-revisions',message:'Only long-term validation evidence was added; signed content and document structure passed independent revision checks.'},modifications:{modified:true,revisionCount:1}}})
+			wrapper.vm.docMdpOpen = true
+			await wrapper.vm.$nextTick()
+			expect(wrapper.vm.hasDocumentModificationWarning(wrapper.props('signer'))).toBe(false)
+			expect(wrapper.vm.getModificationStatusClass(wrapper.props('signer'))).toBe('validation-icon--success')
+			expect(wrapper.text()).toContain('Only long-term validation evidence was added')
+			expect(wrapper.text()).toContain('No certification')
+			expect(wrapper.text()).not.toContain('Document was modified after signing')
+		})
+		it('explains verified later signers without hiding unclassified changes', () => {
+			const signer={signature_validation:{id:1},document_modification_state:'unsigned_content' as const,modification_validation:{valid:true,status:2,source:'dss-managed-form-revisions'}}
+			expect(wrapper.vm.hasDocumentModificationWarning(signer)).toBe(false)
+			expect(wrapper.vm.getModificationStatusClass(signer)).toBe('validation-icon--success')
+			expect(wrapper.vm.hasDocumentModificationWarning({...signer,modification_validation:{...signer.modification_validation,source:'unclassified'}})).toBe(true)
+		})
+		it.each([{status:2,valid:true},{status:2,valid:false,source:'dss-pdf-revisions'},{status:3,valid:true,source:'dss-pdf-revisions'}])('retains change warnings without the full verified evidence classification: %j',(modification_validation)=>{
+			const signer={signed:'2026-11-09T03:34:38Z',signature_validation:{id:1},document_modification_state:'unsigned_content' as const,modification_validation}
+			expect(wrapper.vm.hasDocumentModificationWarning(signer)).toBe(true)
+		})
+	})
+
 	describe('certificate expiry presentation', () => {
 		const now = new Date('2026-10-27T15:00:00Z')
 

@@ -96,6 +96,7 @@ class FileService {
 		private SettingsLoader $settingsLoader,
 		private MessagesLoader $messagesLoader,
 		private FileStatusService $fileStatusService,
+		private DocumentArchiveService $documentArchive,
 	) {
 		$this->initializeFileData();
 		$this->options = new FileResponseOptions();
@@ -159,6 +160,7 @@ class FileService {
 	}
 
 	public function validateFileContent(string $content, string $fileName, string $extension): void {
+		if ($extension === 'pdf') \OCP\Server::get(LetterheadUploadPolicy::class)->assertMayUpload($content);
 		if ($extension === 'pdf') {
 			$this->pdfValidator->validate($content, $fileName);
 		}
@@ -295,8 +297,7 @@ class FileService {
 			throw new LibresignException($this->l10n->t('Invalid data to validate file'), 404);
 		}
 
-		if (!$file instanceof File) {
-			// TRANSLATORS Error shown when the document identifier used in a signing flow is invalid.
+		if (!$file instanceof File || $file->getExternallySigned()) {
 			throw new LibresignException($this->l10n->t('Invalid file identifier'), 404);
 		}
 
@@ -362,16 +363,7 @@ class FileService {
 	}
 
 	private function getFile(): \OCP\Files\File {
-		$nodeId = $this->file->getSignedNodeId();
-		if (!$nodeId) {
-			$nodeId = $this->file->getNodeId();
-		}
-		$fileToValidate = $this->root->getUserFolder($this->file->getUserId())->getFirstNodeById($nodeId);
-		if (!$fileToValidate instanceof \OCP\Files\File) {
-			// TRANSLATORS Error shown when the requested document cannot be found.
-			throw new LibresignException($this->l10n->t('File not found'), 404);
-		}
-		return $fileToValidate;
+		return $this->documentArchive->resolve($this->file);
 	}
 
 	public function getStatus(): int {
@@ -452,7 +444,7 @@ class FileService {
 		$this->fileData->status = $this->file->getStatus();
 		$this->fileData->created_at = $this->file->getCreatedAt()->format(DateTimeInterface::ATOM);
 		$this->fileData->statusText = $this->fileMapper->getTextOfStatus($this->file->getStatus());
-		$this->fileData->nodeId = $this->file->getNodeId();
+		$this->fileData->nodeId = $this->file->getDisplayNodeId();
 		$this->fileData->signatureFlow = SignatureFlow::fromNumeric($this->file->getSignatureFlow())->value;
 		$this->fileData->docmdpLevel = $this->file->getDocmdpLevel();
 		$this->fileData->nodeType = $this->file->getNodeType();
@@ -611,12 +603,20 @@ class FileService {
 		$this->loadFileMetadata();
 		$this->loadSettings();
 		$this->loadSigners();
+        if ($this->options->isValidateFile() && ($this->fileData->nodeType ?? 'file') !== 'envelope') {
+         $content = $this->fileContent ?: (($this->file instanceof File && $this->file->getSignedNodeId()) ? $this->getFile()->getContent() : '');
+         if ($content !== '') $this->fileData->longTermValidation = \OCP\Server::get(PadesVerificationService::class)->userReport($content);
+        }
 		$this->loadVisibleElements();
 		$this->loadMessages();
 		$this->computeEnvelopeSignersProgress();
 		$this->syncSingleFileCollection();
 
 		$return = json_decode(json_encode($this->fileData), true);
+        if (isset($return['longTermValidation']) && ($return['nodeType'] ?? 'file') !== 'envelope') {
+         $return['signers'] = PdfRevisionPolicy::reconcile($return['signers'] ?? [], $return['longTermValidation']);
+         foreach ($return['files'] ?? [] as $index => $child) if (($child['id'] ?? null) === ($return['id'] ?? null)) $return['files'][$index]['signers'] = $return['signers'];
+        }
 		ksort($return);
 		return $return;
 	}
@@ -833,6 +833,9 @@ class FileService {
 
 	public function delete(int $fileId, bool $deleteFile = true): void {
 		$file = $this->fileMapper->getById($fileId);
+		CampaignPolicy::assertEditable($file);
+		// Preflight the whole envelope before removing any child or signing data.
+		$this->documentArchive->assertCanDelete($file);
 
 		$this->decrementEnvelopeFilesCountIfNeeded($file);
 

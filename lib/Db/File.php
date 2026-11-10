@@ -17,6 +17,7 @@ use OCP\DB\Types;
 /**
  * @method void setId(int $id)
  * @method int getId()
+ * @method void setExternallySigned(int $externallySigned)
  * @method void setNodeId(?int $nodeId)
  * @method ?int getNodeId()
  * @method void setSignedNodeId(?int $nodeId)
@@ -47,8 +48,13 @@ use OCP\DB\Types;
  * @method 'file'|'envelope' getNodeType()
  * @method void setParentFileId(?int $parentFileId)
  * @method ?int getParentFileId()
+ * @method void setRequestedAt(?\DateTime $requestedAt)
+ * @method ?\DateTime getRequestedAt()
+ * @method void setCompletedAt(?\DateTime $completedAt)
+ * @method ?\DateTime getCompletedAt()
  */
 class File extends Entity {
+	protected int $externallySigned = 0;
 	protected ?int $nodeId = null;
 	protected string $uuid = '';
 	protected ?\DateTime $createdAt = null;
@@ -64,6 +70,8 @@ class File extends Entity {
 	protected int $docmdpLevel = 0;
 	protected string $nodeType = 'file';
 	protected ?int $parentFileId = null;
+	protected ?\DateTime $requestedAt = null;
+	protected ?\DateTime $completedAt = null;
 
 	public const MODIFICATION_UNCHECKED = 0;
 	public const MODIFICATION_UNMODIFIED = 1;
@@ -72,6 +80,7 @@ class File extends Entity {
 
 	public function __construct() {
 		$this->addType('id', Types::INTEGER);
+		$this->addType('externallySigned', Types::SMALLINT);
 		$this->addType('nodeId', Types::INTEGER);
 		$this->addType('signedNodeId', Types::INTEGER);
 		$this->addType('signedHash', Types::STRING);
@@ -87,11 +96,22 @@ class File extends Entity {
 		$this->addType('docmdpLevel', Types::SMALLINT);
 		$this->addType('nodeType', Types::STRING);
 		$this->addType('parentFileId', Types::INTEGER);
+		$this->addType('requestedAt', Types::DATETIME);
+		$this->addType('completedAt', Types::DATETIME);
+	}
+
+	public function getExternallySigned(): bool {
+		return $this->externallySigned === 1;
 	}
 
 	public function isDeletedAccount(): bool {
 		$metadata = $this->getMetadata();
 		return isset($metadata['deleted_account']);
+	}
+
+	/** Stable integer for existing PDF-view API contracts after source deletion. */
+	public function getDisplayNodeId(): int {
+		return $this->getNodeId() ?? $this->getSignedNodeId() ?? 0;
 	}
 
 	public function getUserId(): string {

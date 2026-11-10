@@ -3,6 +3,8 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
+ <div class="validation-page">
+  <nav class="validation-navigation" :aria-label="t('libresign', 'Page navigation')"><NcButton :href="dashboardUrl" variant="secondary">← {{ t('libresign', 'Back to Dashboard') }}</NcButton></nav>
 	<div class="container">
 		<div class="logo">
 			<img :src="logo" :alt="t('libresign', 'LibreSign logo')" draggable="false">
@@ -98,6 +100,7 @@
 			</div>
 		</div>
 	</div>
+ </div>
 </template>
 
 <script setup lang="ts">
@@ -322,6 +325,7 @@ const route = computed<RouteState>(() => {
 })
 const router = computed<RouterState>(() => (instance?.proxy?.$router as RouterState | undefined) ?? { push: () => {}, replace: () => {} })
 
+const dashboardUrl = generateUrl('/apps/libresign/f/dashboard')
 const logo = ref(logoGray)
 const uuidToValidate = ref(route.value.params.uuid ?? '')
 const hasInfo = ref(false)
@@ -711,10 +715,6 @@ function hasValidationIssues(signer: ValidationDisplaySigner) {
 		return true
 	}
 	if (signer.valid_from && signer.valid_to && signer.signed && getValidityStatusAtSigning(signer) !== 'valid') {
-		return true
-	}
-	const currentStatus = getValidityStatus(signer)
-	if (currentStatus === 'expired' || currentStatus === 'expiring') {
 		return true
 	}
 	return false
@@ -1165,6 +1165,11 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+.validation-page{display:flex;flex-direction:column;height:100%;width:100%;overflow-y:auto;min-width:0;}
+.validation-navigation{flex:none;padding:12px 20px;display:flex;justify-content:flex-start;}
+.validation-page>.container{flex:1 0 auto;height:auto;overflow:visible;min-height:0;}
+.validation-page>.container>.logo{height:auto;min-height:300px;position:static;}
+@media(max-width:1400px){.validation-page>.container>.logo{min-height:0;}}
 .container {
 	display: flex;
 	flex-direction: row;

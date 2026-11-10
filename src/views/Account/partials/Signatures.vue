@@ -16,15 +16,6 @@
 			</template>
 		</Signature>
 
-		<Signature v-if="false" type="initial">
-			<template #title>
-				{{ t('libresign', 'Initials') }}
-			</template>
-
-			<template #no-signatures>
-				{{ t('libresign', 'No initials, click here to create a new one') }}
-			</template>
-		</Signature>
 	</div>
 </template>
 

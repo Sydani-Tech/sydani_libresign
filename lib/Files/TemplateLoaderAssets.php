@@ -8,18 +8,18 @@ declare(strict_types=1);
 
 namespace OCA\Libresign\Files;
 
-use OCP\Util;
+use OCA\Libresign\Helper\FrontendAssets;
 
 class TemplateLoaderAssets {
 	public function addInitScript(string $appId, string $script): void {
-		Util::addInitScript($appId, $script);
+		FrontendAssets::addInitScript($appId, $script);
 	}
 
 	public function addScript(string $appId, string $script): void {
-		Util::addScript($appId, $script);
+		FrontendAssets::addScript($appId, $script);
 	}
 
 	public function addStyle(string $appId, string $style): void {
-		Util::addStyle($appId, $style);
+		FrontendAssets::addStyle($appId, $style);
 	}
 }

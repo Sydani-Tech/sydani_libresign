@@ -123,6 +123,7 @@ appstore: verify-release-metadata
 		js \
 		l10n \
 		lib \
+		resources \
 		templates \
 		vendor \
 		3rdparty \
@@ -194,6 +195,10 @@ verify-appstore-package: verify-release-metadata
 	cmp $(release_changelog) $(appstore_sign_dir)/$(app_name)/CHANGELOG.md
 	test -d $(appstore_sign_dir)/$(app_name)/css
 	test -d $(appstore_sign_dir)/$(app_name)/js
+	test -f $(appstore_sign_dir)/$(app_name)/resources/signing-fields.jar
+	test -f $(appstore_sign_dir)/$(app_name)/resources/pades-report.jar
+	test -f $(appstore_sign_dir)/$(app_name)/resources/letterhead-pdf.jar
+	php tools/packaging/check-frontend-assets.php "$(appstore_sign_dir)/$(app_name)"
 	find \
 		$(appstore_sign_dir)/$(app_name)/js \
 		$(appstore_sign_dir)/$(app_name)/dist \

@@ -324,7 +324,7 @@ const {
 	catalogViewButtonLabel,
 	catalogCollapseButtonLabel,
 } = useCatalogPresentation({
-	visibleSettingSummaries: computed(() => state.visibleSettingSummaries),
+	visibleSettingSummaries: computed(() => state.visibleSettingSummaries.filter(setting => !['reminder_settings', 'groups_request_sign'].includes(setting.key))),
 	settingsFilter: catalogState.settingsFilter,
 	catalogLayout: catalogState.catalogLayout,
 	isCatalogCollapsed: catalogState.isCatalogCollapsed,

@@ -112,8 +112,11 @@ final class SignatureTextPolicyValue {
 
 	/** @return 'default'|'graphic'|'text'|'description_only' */
 	private static function normalizeRenderMode(mixed $value): string {
-		$mode = (string)($value ?? 'default');
+		$mode = strtolower(trim((string)($value ?? 'default')));
 		return match ($mode) {
+			'graphic_only' => 'graphic',
+			'signame_and_description' => 'text',
+			'graphic_and_description' => 'default',
 			'default', 'graphic', 'text', 'description_only' => $mode,
 			default => 'default',
 		};
@@ -121,7 +124,7 @@ final class SignatureTextPolicyValue {
 
 	/** @return 'default'|'custom'|'deleted' */
 	private static function normalizeBackgroundType(mixed $value): string {
-		$mode = (string)($value ?? 'default');
+		$mode = strtolower(trim((string)($value ?? 'default')));
 		return match ($mode) {
 			'default', 'custom', 'deleted' => $mode,
 			default => 'default',

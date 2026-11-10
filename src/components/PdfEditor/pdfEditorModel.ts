@@ -190,9 +190,10 @@ export function createPdfEditorObject({
 } {
 	return {
 		id: objectId,
-		type: 'signature',
+		type: visibleElement?.type || 'signature',
 		signer,
 		...(visibleElement ? { visibleElement } : {}),
+		...(visibleElement?.metadata ? { metadata: { ...visibleElement.metadata } } : {}),
 		...(documentIndex !== undefined ? { documentIndex } : {}),
 		x: placement.x,
 		y: placement.y,

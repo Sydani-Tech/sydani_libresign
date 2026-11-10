@@ -80,6 +80,7 @@ final class FooterHandlerTest extends \OCA\Libresign\Tests\Unit\TestCase {
 			$this->tempManager,
 			$this->policyService,
 			$templateVars,
+			new \OCA\Libresign\Service\ShortValidationUrlService($this->urlGenerator, $this->appConfig),
 		);
 		return $this->footerHandler;
 	}
@@ -174,7 +175,7 @@ final class FooterHandlerTest extends \OCA\Libresign\Tests\Unit\TestCase {
 		$this->l10n = $this->l10nFactory->get(Application::APP_ID, $language);
 
 		$pdf = $this->getClass()
-			->setTemplateVar('uuid', 'uuid')
+			->setTemplateVar('uuid', '00000000-0000-4000-8000-000000000001')
 			->getFooter($dimensions);
 		if ($settings['add_footer']) {
 			$actual = $this->extractPdfContent(

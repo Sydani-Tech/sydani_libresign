@@ -61,6 +61,7 @@ class RequestSignatureService {
 		protected SequentialSigningService $sequentialSigningService,
 		protected IAppConfig $appConfig,
 		protected FileStatusService $fileStatusService,
+		private DocumentArchiveService $documentArchive,
 		protected DocMdpConfigService $docMdpConfigService,
 		protected EnvelopeService $envelopeService,
 		protected EnvelopeFileRelocator $envelopeFileRelocator,
@@ -350,6 +351,8 @@ class RequestSignatureService {
 	public function saveFile(array $data): FileEntity {
 		if (!empty($data['uuid'])) {
 			$file = $this->fileMapper->getByUuid($data['uuid']);
+			CampaignPolicy::assertEditable($file);
+			\OCP\Server::get(LetterheadService::class)->assertSignerEdit($file, $data);
 			$this->filePolicyApplier->syncCoreFlowPolicies($file, $data);
 			if (!empty($data['name'])) {
 				$file->setName($data['name']);
@@ -373,12 +376,15 @@ class RequestSignatureService {
 				throw new LibresignException($this->l10n->t('This document is registered more than once, so it cannot be updated. Please contact your administrator.'), 422);
 			}
 			if ($file !== null) {
+				CampaignPolicy::assertEditable($file);
+				\OCP\Server::get(LetterheadService::class)->assertSignerEdit($file, $data);
 				$this->filePolicyApplier->syncAllPolicies($file, $data);
 				return $this->fileStatusService->updateFileStatusIfUpgrade($file, $data['status'] ?? 0);
 			}
 		}
 
 		$node = $this->fileService->getNodeFromData($data);
+		if ($node instanceof \OCP\Files\File && $node->getMimeType() === 'application/pdf') \OCP\Server::get(LetterheadUploadPolicy::class)->assertMayUpload($node->getContent());
 
 		$file = new FileEntity();
 		$file->setNodeId($node->getId());
@@ -416,6 +422,9 @@ class RequestSignatureService {
 
 		$this->filePolicyApplier->applyAll($file, $data);
 
+		if ($file->getStatus() === FileStatus::ABLE_TO_SIGN->value) {
+			$file->setRequestedAt(new \DateTime('now', new \DateTimeZone('UTC')));
+		}
 		$this->fileMapper->insert($file);
 		return $file;
 	}
@@ -626,11 +635,13 @@ class RequestSignatureService {
 			// TRANSLATORS Error shown when a signature-request action is missing both the document identifier and the file object.
 			throw new \Exception($this->l10n->t('Please provide either UUID or File object'));
 		}
+		CampaignPolicy::assertEditable($fileData);
+		$this->documentArchive->assertCanDelete($fileData);
 		foreach ($signatures as $signRequest) {
 			$this->identifyMethod->deleteBySignRequestId($signRequest->getId());
 			$this->signRequestMapper->delete($signRequest);
 		}
-		$this->fileMapper->delete($fileData);
 		$this->fileElementService->deleteVisibleElements($fileData->getId());
+		$this->fileMapper->delete($fileData);
 	}
 }

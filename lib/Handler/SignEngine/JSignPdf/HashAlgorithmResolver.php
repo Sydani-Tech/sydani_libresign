@@ -37,6 +37,12 @@ class HashAlgorithmResolver {
 	 *
 	 * @param float|null $pdfVersion null when the content carries no readable PDF header
 	 */
+	/** DSS can sign preserved PDF revisions without weakening their digest to SHA1. */
+	public function forLongTermSignature(): string {
+		$algorithm = $this->getConfiguredAlgorithm();
+		return in_array($algorithm, ['SHA256', 'SHA384', 'SHA512'], true) ? $algorithm : self::DEFAULT_ALGORITHM;
+	}
+
 	public function forSignature(?float $pdfVersion): string {
 		$configuredAlgorithm = $this->getConfiguredAlgorithm();
 		/**

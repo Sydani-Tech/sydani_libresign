@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Libresign\Handler;
 
 use OCA\Libresign\Exception\LibresignException;
+use OCA\Libresign\Exception\TemporaryTimestampException;
 use OCA\Libresign\Helper\JSActions;
 use OCP\IL10N;
 use OCP\IRequest;
@@ -26,6 +27,18 @@ class SigningErrorHandler {
 	 * @return array{action: int, errors: list<array{message: string, code?: int, title?: string}>}
 	 */
 	public function handleException(\Throwable $exception): array {
+		if ($exception instanceof TemporaryTimestampException) {
+			return [
+				'action' => JSActions::ACTION_DO_NOTHING,
+				'errors' => [[
+					'code' => 503,
+					// TRANSLATORS Temporary failure after retrying the timestamp authority; the request remains unsigned.
+					'message' => $this->l10n->t('The timestamp service is temporarily unavailable. Automatic retries were unsuccessful. No signed document was saved. Please wait a moment and try again.'),
+					'title' => $this->l10n->t('Timestamp service temporarily unavailable'),
+				]],
+			];
+		}
+
 		if ($exception instanceof LibresignException) {
 			return $this->handleLibresignException($exception);
 		}

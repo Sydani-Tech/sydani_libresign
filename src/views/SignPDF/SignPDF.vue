@@ -15,8 +15,9 @@
 			:files="pdfBlobs"
 			:file-names="fileNames.length > 0 ? fileNames : [pdfFileName]"
 			:read-only="true"
+			:editable-sign-request-ids="currentUserSignRequestIds"
 			:emit-object-click="true"
-			@pdf-editor:object-click="dispatchPrimaryAction"
+			@pdf-editor:object-click="ensureSignSidebarOpen"
 			@pdf-editor:end-init="updateSigners" />
 		<div class="button-wrapper">
 			<NcButton
@@ -53,6 +54,7 @@ import {
 	aggregateVisibleElementsByFiles,
 	findFileById,
 	getFileSigners,
+	getCurrentUserSignRequestIds,
 	getFileUrl,
 	getVisibleElementsFromDocument,
 	idsMatch,
@@ -224,6 +226,10 @@ const elementClickHandler = ref<EventListener | null>(null)
 const isMobile = typeof window !== 'undefined' && window.innerWidth <= 512
 const EMPTY_ENVELOPE_FILES: RawSignDocumentFile[] = []
 const EMPTY_PDFS: string[] = []
+
+const currentUserSignRequestIds = computed(() => getCurrentUserSignRequestIds(
+	normalizeDocumentForVisibleElements(signStore.document),
+))
 
 const pdfFileName = computed(() => {
 	const doc = signStore.document
@@ -485,7 +491,10 @@ async function setupElementClickListener() {
 		return
 	}
 
-	elementClickHandler.value = () => dispatchPrimaryAction()
+	elementClickHandler.value = (event: Event) => {
+		if ((event.target as HTMLElement)?.closest('.signing-field')) return
+		dispatchPrimaryAction()
+	}
 	element.addEventListener('click', elementClickHandler.value, true)
 }
 

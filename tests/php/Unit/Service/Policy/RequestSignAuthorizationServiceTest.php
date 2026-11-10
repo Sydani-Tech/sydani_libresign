@@ -14,21 +14,24 @@ use OCA\Libresign\Service\Policy\Provider\RequestSignGroups\RequestSignGroupsPol
 use OCA\Libresign\Service\Policy\RequestSignAuthorizationService;
 use OCP\IGroupManager;
 use OCP\IUser;
+use OCP\IAppConfig;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 final class RequestSignAuthorizationServiceTest extends TestCase {
 	private PolicyService&MockObject $policyService;
 	private IGroupManager&MockObject $groupManager;
+	private IAppConfig&MockObject $appConfig;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->policyService = $this->createMock(PolicyService::class);
 		$this->groupManager = $this->createMock(IGroupManager::class);
+		$this->appConfig = $this->createMock(IAppConfig::class);
 	}
 
 	public function testDeniesWhenUserIsNotAuthenticated(): void {
-		$service = new RequestSignAuthorizationService($this->policyService, $this->groupManager);
+		$service = new RequestSignAuthorizationService($this->policyService, $this->groupManager, $this->appConfig);
 		$this->assertFalse($service->canRequestSign(null));
 	}
 
@@ -48,7 +51,7 @@ final class RequestSignAuthorizationServiceTest extends TestCase {
 			->with($user)
 			->willReturn(['finance']);
 
-		$service = new RequestSignAuthorizationService($this->policyService, $this->groupManager);
+		$service = new RequestSignAuthorizationService($this->policyService, $this->groupManager, $this->appConfig);
 		$this->assertTrue($service->canRequestSign($user));
 	}
 
@@ -68,7 +71,7 @@ final class RequestSignAuthorizationServiceTest extends TestCase {
 			->with($user)
 			->willReturn(['sales']);
 
-		$service = new RequestSignAuthorizationService($this->policyService, $this->groupManager);
+		$service = new RequestSignAuthorizationService($this->policyService, $this->groupManager, $this->appConfig);
 		$this->assertFalse($service->canRequestSign($user));
 	}
 
@@ -88,7 +91,21 @@ final class RequestSignAuthorizationServiceTest extends TestCase {
 			->with($user)
 			->willReturn(['board']);
 
-		$service = new RequestSignAuthorizationService($this->policyService, $this->groupManager);
+		$service = new RequestSignAuthorizationService($this->policyService, $this->groupManager, $this->appConfig);
 		$this->assertFalse($service->canRequestSign($user));
+	}
+
+	public function testAllowsAuthenticatedUserWhenAllSignedInAccessIsEnabled(): void {
+		$this->appConfig->method('getValueBool')->with('libresign', 'allow_all_signed_in_request_sign', true)->willReturn(true);
+		$this->policyService->expects($this->never())->method('resolveForUser');
+		$service = new RequestSignAuthorizationService($this->policyService, $this->groupManager, $this->appConfig);
+		$this->assertTrue($service->canRequestSign($this->createMock(IUser::class)));
+	}
+
+	public function testAllSignedInAccessStillRejectsAnonymousRequests(): void {
+		$this->appConfig->method('getValueBool')->willReturn(true);
+		$this->policyService->expects($this->never())->method('resolveForUser');
+		$service = new RequestSignAuthorizationService($this->policyService, $this->groupManager, $this->appConfig);
+		$this->assertFalse($service->canRequestSign(null));
 	}
 }
